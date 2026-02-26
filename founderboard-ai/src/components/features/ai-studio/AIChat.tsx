@@ -1,12 +1,19 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { type TemplateType, getTemplate } from '@/types/ai'
 import { cn } from '@/lib/utils'
+import {
+  createConversation,
+  saveMessage,
+  getConversationMessages,
+} from '@/lib/actions/ai'
 
 interface Message {
   id: string
@@ -16,16 +23,57 @@ interface Message {
 
 interface AIChatProps {
   template: TemplateType
+  conversationId?: string | null
+  onConversationCreated?: (id: string) => void
 }
 
-export function AIChat({ template }: AIChatProps) {
+export function AIChat({ template, conversationId, onConversationCreated }: AIChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(
+    conversationId ?? null
+  )
   const abortControllerRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const templateConfig = getTemplate(template)
+
+  // Load existing conversation messages
+  useEffect(() => {
+    async function loadMessages() {
+      if (!conversationId) {
+        setMessages([])
+        setCurrentConversationId(null)
+        return
+      }
+
+      setIsLoadingHistory(true)
+      try {
+        const result = await getConversationMessages(conversationId)
+        if (result.success) {
+          setMessages(
+            result.data.map((m) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+            }))
+          )
+          setCurrentConversationId(conversationId)
+        } else {
+          toast.error(result.error.message)
+        }
+      } catch (error) {
+        console.error('Load messages error:', error)
+        toast.error('Failed to load conversation')
+      } finally {
+        setIsLoadingHistory(false)
+      }
+    }
+
+    loadMessages()
+  }, [conversationId])
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -50,10 +98,11 @@ export function AIChat({ template }: AIChatProps) {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
+    const userMessageContent = input.trim()
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input.trim(),
+      content: userMessageContent,
     }
 
     setMessages((prev) => [...prev, userMessage])
@@ -63,10 +112,25 @@ export function AIChat({ template }: AIChatProps) {
     abortControllerRef.current = new AbortController()
 
     try {
+      // Create conversation if this is the first message
+      let convId = currentConversationId
+      if (!convId) {
+        const convResult = await createConversation(template)
+        if (!convResult.success) {
+          throw new Error(convResult.error.message)
+        }
+        convId = convResult.data.id
+        setCurrentConversationId(convId)
+        onConversationCreated?.(convId)
+      }
+
+      // Save user message
+      await saveMessage(convId, 'user', userMessageContent)
+
       const response = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMessage.content, template }),
+        body: JSON.stringify({ prompt: userMessageContent, template }),
         signal: abortControllerRef.current.signal,
       })
 
@@ -87,19 +151,26 @@ export function AIChat({ template }: AIChatProps) {
       setMessages((prev) => [...prev, assistantMessage])
 
       const decoder = new TextDecoder()
+      let fullContent = ''
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
         const chunk = decoder.decode(value, { stream: true })
-        setMessages((prev) => {
-          const updated = [...prev]
-          const lastMsg = updated[updated.length - 1]
-          if (lastMsg.role === 'assistant') {
-            lastMsg.content += chunk
-          }
-          return updated
-        })
+        fullContent += chunk
+        setMessages((prev) =>
+          prev.map((msg, idx) =>
+            idx === prev.length - 1 && msg.role === 'assistant'
+              ? { ...msg, content: msg.content + chunk }
+              : msg
+          )
+        )
+      }
+
+      // Save assistant message after streaming completes
+      if (convId && fullContent) {
+        await saveMessage(convId, 'assistant', fullContent)
       }
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
@@ -112,7 +183,7 @@ export function AIChat({ template }: AIChatProps) {
       setIsLoading(false)
       abortControllerRef.current = null
     }
-  }, [input, isLoading, template])
+  }, [input, isLoading, template, currentConversationId, onConversationCreated])
 
   const handleStop = () => {
     abortControllerRef.current?.abort()
@@ -149,6 +220,29 @@ export function AIChat({ template }: AIChatProps) {
     } catch {
       toast.error('Failed to copy')
     }
+  }
+
+  if (isLoadingHistory) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="pb-4 border-b">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{templateConfig.icon}</span>
+            <div>
+              <h2 className="font-semibold">{templateConfig.name}</h2>
+              <p className="text-sm text-muted-foreground">{templateConfig.description}</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="space-y-2 w-full max-w-md">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -191,7 +285,13 @@ export function AIChat({ template }: AIChatProps) {
             >
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 {message.role === 'assistant' ? (
-                  <div className="whitespace-pre-wrap">{message.content || '...'}</div>
+                  message.content ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
+                  ) : (
+                    <span>...</span>
+                  )
                 ) : (
                   <p>{message.content}</p>
                 )}

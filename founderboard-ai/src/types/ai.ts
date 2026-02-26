@@ -26,6 +26,25 @@ export interface AIGeneration {
   createdAt: Date
 }
 
+// Persistent conversation types
+export interface AIConversation {
+  id: string
+  orgId: string
+  userId: string
+  template: TemplateType
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AIConversationMessage {
+  id: string
+  conversationId: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
+
 export const TEMPLATES: Template[] = [
   {
     id: 'investor-update',

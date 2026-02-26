@@ -11,6 +11,8 @@ export const COLLECTIONS = {
   METRIC_SNAPSHOTS: 'metric_snapshots',
   TASKS: 'tasks',
   AI_CONTENT: 'ai_content',
+  AI_CONVERSATIONS: 'ai_conversations',
+  AI_MESSAGES: 'ai_messages',
   ACTIVITY_LOGS: 'activity_logs',
 } as const
 
@@ -46,6 +48,14 @@ export function getTasksCollection(): CollectionReference<DocumentData> {
 
 export function getAiContentCollection(): CollectionReference<DocumentData> {
   return collection(getDb(), COLLECTIONS.AI_CONTENT)
+}
+
+export function getAiConversationsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.AI_CONVERSATIONS)
+}
+
+export function getAiMessagesCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.AI_MESSAGES)
 }
 
 export function getActivityLogsCollection(): CollectionReference<DocumentData> {
