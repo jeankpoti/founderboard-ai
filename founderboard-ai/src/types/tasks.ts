@@ -23,8 +23,8 @@ export interface Task {
   assigneeName?: string
   assigneeEmail?: string
   createdBy: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string // ISO string for Server/Client Component compatibility
+  updatedAt: string // ISO string for Server/Client Component compatibility
   order: number // For ordering within columns
 }
 

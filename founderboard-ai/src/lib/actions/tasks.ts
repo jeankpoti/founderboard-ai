@@ -29,8 +29,8 @@ export async function getTasks(): Promise<ApiResponse<Task[]>> {
       return {
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
-        updatedAt: data.updatedAt?.toDate?.() || new Date(data.updatedAt),
+        createdAt: (data.createdAt?.toDate?.() || new Date(data.createdAt)).toISOString(),
+        updatedAt: (data.updatedAt?.toDate?.() || new Date(data.updatedAt)).toISOString(),
       }
     }) as Task[]
 
@@ -113,8 +113,8 @@ export async function createTask(input: CreateTaskInput): Promise<ApiResponse<Ta
       assigneeName,
       assigneeEmail,
       createdBy: orgContext.user.uid,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
       order: maxOrder,
     }
 
@@ -194,7 +194,7 @@ export async function updateTask(
     }
 
     const updateData: Partial<Task> = {
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     }
 
     if (validation.data.title !== undefined) {
@@ -228,8 +228,19 @@ export async function updateTask(
 
     await taskRef.update(updateData)
 
-    const updatedTask = {
+    // Serialize timestamps from existingTask
+    const serializedExisting = {
       ...existingTask,
+      createdAt: existingTask.createdAt?.toDate?.()
+        ? existingTask.createdAt.toDate().toISOString()
+        : existingTask.createdAt,
+      updatedAt: existingTask.updatedAt?.toDate?.()
+        ? existingTask.updatedAt.toDate().toISOString()
+        : existingTask.updatedAt,
+    }
+
+    const updatedTask = {
+      ...serializedExisting,
       ...updateData,
       id: taskId,
     } as Task
@@ -346,14 +357,25 @@ export async function moveTask(
     const updateData: Partial<Task> = {
       status: newStatus,
       order: newOrder,
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     }
 
     await taskRef.update(updateData)
 
+    // Serialize timestamps from existingTask
+    const serializedExisting = {
+      ...existingTask,
+      createdAt: existingTask.createdAt?.toDate?.()
+        ? existingTask.createdAt.toDate().toISOString()
+        : existingTask.createdAt,
+      updatedAt: existingTask.updatedAt?.toDate?.()
+        ? existingTask.updatedAt.toDate().toISOString()
+        : existingTask.updatedAt,
+    }
+
     return {
       success: true,
-      data: { ...existingTask, ...updateData, id: taskId } as Task,
+      data: { ...serializedExisting, ...updateData, id: taskId } as Task,
     }
   } catch (error) {
     console.error('Move task error:', error)

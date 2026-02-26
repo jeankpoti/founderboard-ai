@@ -208,15 +208,15 @@ export function TaskModal({
             <div className="space-y-2">
               <Label htmlFor="assignee">Assignee</Label>
               <Select
-                value={assigneeId}
-                onValueChange={setAssigneeId}
+                value={assigneeId || 'unassigned'}
+                onValueChange={(v) => setAssigneeId(v === 'unassigned' ? '' : v)}
                 disabled={isReadOnly}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Unassigned" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
                   {members.map((member) => (
                     <SelectItem key={member.id} value={member.id}>
                       {member.name || member.email}
