@@ -251,8 +251,12 @@ export async function updateNote(
     const userDoc = await db.collection(COLLECTIONS.USERS).doc(orgContext.user.uid).get()
     const lastEditedByName = userDoc.exists ? userDoc.data()?.displayName : undefined
 
+    // Build update data, converting null folderId to undefined
+    const { folderId, ...restData } = validation.data
     const updateData: Partial<Note> = {
-      ...validation.data,
+      ...restData,
+      // Convert null to undefined for folderId (to remove folder assignment)
+      ...(folderId !== undefined && { folderId: folderId || undefined }),
       lastEditedBy: orgContext.user.uid,
       lastEditedByName,
       updatedAt: new Date().toISOString(),

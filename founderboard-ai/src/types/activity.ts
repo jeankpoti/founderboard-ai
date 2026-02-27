@@ -65,6 +65,9 @@ export type ActivityType =
   // Note activities
   | 'note_created' // New note created
   | 'note_updated' // Note edited
+  // Template activities
+  | 'template_created' // New template created
+  | 'template_updated' // Template edited
   // Roadmap activities
   | 'roadmap_item_created' // New roadmap item added
   | 'roadmap_item_updated' // Roadmap item updated
@@ -107,6 +110,8 @@ export const ACTIVITY_TYPES: ActivityType[] = [
   'document_shared',
   'note_created',
   'note_updated',
+  'template_created',
+  'template_updated',
   'roadmap_item_created',
   'roadmap_item_updated',
   'milestone_reached',
@@ -130,6 +135,7 @@ export type ActivityTargetType =
   | 'key_result'
   | 'document'
   | 'note'
+  | 'template'
   | 'roadmap_item'
   | 'milestone'
   | 'integration'
@@ -246,6 +252,8 @@ export const ACTIVITY_MESSAGES: Record<ActivityType, string> = {
   document_shared: '{actor} shared {target}',
   note_created: '{actor} created note {target}',
   note_updated: '{actor} updated note {target}',
+  template_created: '{actor} created template {target}',
+  template_updated: '{actor} updated template {target}',
   roadmap_item_created: '{actor} added {target} to roadmap',
   roadmap_item_updated: '{actor} updated roadmap item {target}',
   milestone_reached: '{actor} reached milestone {target}',
@@ -284,6 +292,8 @@ export const ACTIVITY_ICONS: Record<ActivityType, string> = {
   document_shared: '🔗',
   note_created: '📝',
   note_updated: '✏️',
+  template_created: '📋',
+  template_updated: '✏️',
   roadmap_item_created: '🗺️',
   roadmap_item_updated: '✏️',
   milestone_reached: '🏁',
@@ -382,6 +392,7 @@ export function getActivityTargetUrl(activity: Activity): string | null {
     key_result: '/okrs',
     document: `/documents/${activity.targetId}`,
     note: `/notes/${activity.targetId}`,
+    template: '/templates',
     roadmap_item: '/roadmap',
     milestone: '/roadmap',
     integration: '/integrations',

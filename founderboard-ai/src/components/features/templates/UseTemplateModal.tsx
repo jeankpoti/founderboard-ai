@@ -261,6 +261,7 @@ export function UseTemplateModal({
         title: template.name,
         content: generatedContent,
         category: 'general',
+        isPinned: false,
         tags: [...(template.tags || []), 'from-template'],
       })
 
