@@ -228,19 +228,10 @@ export async function updateTask(
 
     await taskRef.update(updateData)
 
-    // Serialize timestamps from existingTask
-    const serializedExisting = {
-      ...existingTask,
-      createdAt: existingTask.createdAt?.toDate?.()
-        ? existingTask.createdAt.toDate().toISOString()
-        : existingTask.createdAt,
-      updatedAt: existingTask.updatedAt?.toDate?.()
-        ? existingTask.updatedAt.toDate().toISOString()
-        : existingTask.updatedAt,
-    }
-
+    // Combine existing task with updates
+    // Note: timestamps are already strings (ISO format)
     const updatedTask = {
-      ...serializedExisting,
+      ...existingTask,
       ...updateData,
       id: taskId,
     } as Task
@@ -362,20 +353,11 @@ export async function moveTask(
 
     await taskRef.update(updateData)
 
-    // Serialize timestamps from existingTask
-    const serializedExisting = {
-      ...existingTask,
-      createdAt: existingTask.createdAt?.toDate?.()
-        ? existingTask.createdAt.toDate().toISOString()
-        : existingTask.createdAt,
-      updatedAt: existingTask.updatedAt?.toDate?.()
-        ? existingTask.updatedAt.toDate().toISOString()
-        : existingTask.updatedAt,
-    }
-
+    // Combine existing task with updates
+    // Note: timestamps are already strings (ISO format)
     return {
       success: true,
-      data: { ...serializedExisting, ...updateData, id: taskId } as Task,
+      data: { ...existingTask, ...updateData, id: taskId } as Task,
     }
   } catch (error) {
     console.error('Move task error:', error)

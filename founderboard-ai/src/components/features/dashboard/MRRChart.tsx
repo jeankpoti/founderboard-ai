@@ -36,9 +36,8 @@ export function MRRChart() {
         const result = await getMetricSnapshots('mrr', range)
         if (result.success) {
           const chartData = result.data.map((snapshot: MetricSnapshot) => {
-            const date = snapshot.recordedAt instanceof Date
-              ? snapshot.recordedAt
-              : new Date((snapshot.recordedAt as { seconds: number }).seconds * 1000)
+            // recordedAt is now an ISO string, so we just parse it
+            const date = new Date(snapshot.recordedAt)
             return {
               date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
               fullDate: date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),

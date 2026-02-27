@@ -52,4 +52,4 @@ function getAdminDb(): Firestore {
 }
 
 // Export getters to avoid initialization during build
-export { getAdminAuth as adminAuth, getAdminDb as adminDb }
+export { getAdminAuth as adminAuth, getAdminDb as adminDb, getAdminApp as getFirebaseAdminApp }
