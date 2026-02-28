@@ -30,6 +30,9 @@ import type {
   GitHubPullRequest,
   GitHubIssue,
   LinearIssue,
+  GoogleAnalyticsMetrics,
+  GoogleAnalyticsPageView,
+  GoogleAnalyticsTrafficSource,
 } from '@/types/integrations'
 import { logActivity } from './activity'
 
@@ -1036,6 +1039,212 @@ export async function getLinearIssues(
     return {
       success: false,
       error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Linear issues' },
+    }
+  }
+}
+
+// ========================================
+// GOOGLE ANALYTICS DATA
+// ========================================
+
+/**
+ * Get Google Analytics metrics for an integration.
+ */
+export async function getGoogleAnalyticsMetrics(
+  integrationId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<ApiResponse<GoogleAnalyticsMetrics[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    // Query metrics
+    let query = db
+      .collection(COLLECTIONS.GOOGLE_ANALYTICS_METRICS)
+      .where('integrationId', '==', integrationId)
+      .orderBy('period', 'desc')
+
+    const snapshot = await query.get()
+
+    let metrics = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as GoogleAnalyticsMetrics[]
+
+    // Apply date filters in memory if provided
+    if (startDate) {
+      metrics = metrics.filter((m) => m.period >= startDate)
+    }
+    if (endDate) {
+      metrics = metrics.filter((m) => m.period <= endDate)
+    }
+
+    return { success: true, data: metrics }
+  } catch (error) {
+    console.error('Get Google Analytics metrics error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Google Analytics metrics' },
+    }
+  }
+}
+
+/**
+ * Get Google Analytics page views for an integration.
+ */
+export async function getGoogleAnalyticsPages(
+  integrationId: string,
+  limit = 50
+): Promise<ApiResponse<GoogleAnalyticsPageView[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.GOOGLE_ANALYTICS_PAGES)
+      .where('integrationId', '==', integrationId)
+      .orderBy('pageviews', 'desc')
+      .limit(limit)
+      .get()
+
+    const pages = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as GoogleAnalyticsPageView[]
+
+    return { success: true, data: pages }
+  } catch (error) {
+    console.error('Get Google Analytics pages error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Google Analytics pages' },
+    }
+  }
+}
+
+/**
+ * Get Google Analytics traffic sources for an integration.
+ */
+export async function getGoogleAnalyticsSources(
+  integrationId: string,
+  limit = 20
+): Promise<ApiResponse<GoogleAnalyticsTrafficSource[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.GOOGLE_ANALYTICS_SOURCES)
+      .where('integrationId', '==', integrationId)
+      .orderBy('sessions', 'desc')
+      .limit(limit)
+      .get()
+
+    const sources = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as GoogleAnalyticsTrafficSource[]
+
+    return { success: true, data: sources }
+  } catch (error) {
+    console.error('Get Google Analytics sources error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Google Analytics sources' },
     }
   }
 }

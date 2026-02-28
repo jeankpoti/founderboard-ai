@@ -1109,3 +1109,218 @@ export function getTopContributors(
     .sort((a, b) => b.commits - a.commits)
     .slice(0, limit)
 }
+
+// ========================================
+// GOOGLE ANALYTICS TYPES
+// ========================================
+
+/**
+ * Google Analytics metrics for a period.
+ */
+export interface GoogleAnalyticsMetrics {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Period (e.g., "2024-01-15") */
+  period: string
+
+  /** Number of sessions */
+  sessions: number
+
+  /** Number of unique users */
+  users: number
+
+  /** Number of new users */
+  newUsers: number
+
+  /** Total pageviews */
+  pageviews: number
+
+  /** Bounce rate as percentage (0-100) */
+  bounceRate: number
+
+  /** Average session duration in seconds */
+  avgSessionDuration: number
+
+  /** Average pages per session */
+  pagesPerSession: number
+
+  /** When this data was fetched */
+  fetchedAt: string
+}
+
+/**
+ * Google Analytics page view data.
+ */
+export interface GoogleAnalyticsPageView {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Period (e.g., "2024-01-15") */
+  period: string
+
+  /** Page path (e.g., "/pricing") */
+  pagePath: string
+
+  /** Page title */
+  pageTitle: string
+
+  /** Total pageviews */
+  pageviews: number
+
+  /** Unique pageviews */
+  uniquePageviews: number
+
+  /** Average time on page in seconds */
+  avgTimeOnPage: number
+
+  /** Bounce rate for this page */
+  bounceRate: number
+
+  /** When this data was fetched */
+  fetchedAt: string
+}
+
+/**
+ * Google Analytics traffic source data.
+ */
+export interface GoogleAnalyticsTrafficSource {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Period (e.g., "2024-01-15") */
+  period: string
+
+  /** Traffic source (e.g., "google", "direct", "facebook") */
+  source: string
+
+  /** Traffic medium (e.g., "organic", "cpc", "referral") */
+  medium: string
+
+  /** Number of sessions from this source */
+  sessions: number
+
+  /** Number of users from this source */
+  users: number
+
+  /** Bounce rate for this source */
+  bounceRate: number
+
+  /** Conversion rate for this source */
+  conversionRate: number
+
+  /** When this data was fetched */
+  fetchedAt: string
+}
+
+// ========================================
+// GOOGLE ANALYTICS HELPER FUNCTIONS
+// ========================================
+
+/**
+ * Get total sessions from GA metrics.
+ */
+export function getTotalSessions(metrics: GoogleAnalyticsMetrics[]): number {
+  return metrics.reduce((sum, m) => sum + m.sessions, 0)
+}
+
+/**
+ * Get total users from GA metrics.
+ */
+export function getTotalUsers(metrics: GoogleAnalyticsMetrics[]): number {
+  return metrics.reduce((sum, m) => sum + m.users, 0)
+}
+
+/**
+ * Get total pageviews from GA metrics.
+ */
+export function getTotalPageviews(metrics: GoogleAnalyticsMetrics[]): number {
+  return metrics.reduce((sum, m) => sum + m.pageviews, 0)
+}
+
+/**
+ * Get average bounce rate from GA metrics.
+ */
+export function getAverageBounceRate(metrics: GoogleAnalyticsMetrics[]): number | null {
+  if (metrics.length === 0) return null
+
+  const totalSessions = metrics.reduce((sum, m) => sum + m.sessions, 0)
+  if (totalSessions === 0) return null
+
+  const weightedBounceRate = metrics.reduce(
+    (sum, m) => sum + m.bounceRate * m.sessions,
+    0
+  )
+  return Math.round((weightedBounceRate / totalSessions) * 10) / 10
+}
+
+/**
+ * Get average session duration from GA metrics.
+ */
+export function getAverageSessionDuration(metrics: GoogleAnalyticsMetrics[]): number | null {
+  if (metrics.length === 0) return null
+
+  const totalSessions = metrics.reduce((sum, m) => sum + m.sessions, 0)
+  if (totalSessions === 0) return null
+
+  const weightedDuration = metrics.reduce(
+    (sum, m) => sum + m.avgSessionDuration * m.sessions,
+    0
+  )
+  return Math.round(weightedDuration / totalSessions)
+}
+
+/**
+ * Format session duration for display.
+ */
+export function formatSessionDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}h ${remainingMinutes}m`
+}
+
+/**
+ * Get top traffic sources sorted by sessions.
+ */
+export function getTopTrafficSources(
+  sources: GoogleAnalyticsTrafficSource[],
+  limit = 10
+): GoogleAnalyticsTrafficSource[] {
+  return [...sources]
+    .sort((a, b) => b.sessions - a.sessions)
+    .slice(0, limit)
+}
+
+/**
+ * Get top pages sorted by pageviews.
+ */
+export function getTopPages(
+  pages: GoogleAnalyticsPageView[],
+  limit = 10
+): GoogleAnalyticsPageView[] {
+  return [...pages]
+    .sort((a, b) => b.pageviews - a.pageviews)
+    .slice(0, limit)
+}

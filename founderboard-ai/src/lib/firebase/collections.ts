@@ -261,6 +261,28 @@ export const COLLECTIONS = {
    * Issue records from Linear
    */
   LINEAR_ISSUES: 'linear_issues',
+
+  // ========================================
+  // GOOGLE ANALYTICS INTEGRATION DATA
+  // ========================================
+
+  /**
+   * Google Analytics metrics
+   * Sessions, users, pageviews, bounce rate per period
+   */
+  GOOGLE_ANALYTICS_METRICS: 'google_analytics_metrics',
+
+  /**
+   * Google Analytics page views
+   * Top pages with views and engagement metrics
+   */
+  GOOGLE_ANALYTICS_PAGES: 'google_analytics_pages',
+
+  /**
+   * Google Analytics traffic sources
+   * Traffic breakdown by source/medium
+   */
+  GOOGLE_ANALYTICS_SOURCES: 'google_analytics_sources',
 } as const
 
 // ========================================
@@ -402,4 +424,16 @@ export function getGitHubIssuesCollection(): CollectionReference<DocumentData> {
 
 export function getLinearIssuesCollection(): CollectionReference<DocumentData> {
   return collection(getDb(), COLLECTIONS.LINEAR_ISSUES)
+}
+
+export function getGoogleAnalyticsMetricsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.GOOGLE_ANALYTICS_METRICS)
+}
+
+export function getGoogleAnalyticsPagesCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.GOOGLE_ANALYTICS_PAGES)
+}
+
+export function getGoogleAnalyticsSourcesCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.GOOGLE_ANALYTICS_SOURCES)
 }
