@@ -213,6 +213,22 @@ export const COLLECTIONS = {
    * User reviews with ratings and responses
    */
   APP_REVIEWS: 'app_reviews',
+
+  // ========================================
+  // STRIPE INTEGRATION DATA
+  // ========================================
+
+  /**
+   * Stripe revenue metrics
+   * MRR, revenue, subscription counts per period
+   */
+  STRIPE_METRICS: 'stripe_metrics',
+
+  /**
+   * Stripe charges/payments
+   * Individual payment records
+   */
+  STRIPE_CHARGES: 'stripe_charges',
 } as const
 
 // ========================================
@@ -330,4 +346,12 @@ export function getAppStoreMetricsCollection(): CollectionReference<DocumentData
 
 export function getAppReviewsCollection(): CollectionReference<DocumentData> {
   return collection(getDb(), COLLECTIONS.APP_REVIEWS)
+}
+
+export function getStripeMetricsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.STRIPE_METRICS)
+}
+
+export function getStripeChargesCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.STRIPE_CHARGES)
 }

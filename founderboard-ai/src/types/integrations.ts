@@ -365,6 +365,106 @@ export interface AppReview {
 }
 
 // ========================================
+// STRIPE METRICS
+// ========================================
+
+/**
+ * Stripe revenue metrics for a period.
+ */
+export interface StripeMetrics {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Period (e.g., "2024-01-15") */
+  period: string
+
+  /** Monthly Recurring Revenue in cents */
+  mrr: number
+
+  /** Total revenue in this period (cents) */
+  revenue: number
+
+  /** Number of active subscriptions */
+  activeSubscriptions: number
+
+  /** New subscriptions in this period */
+  newSubscriptions: number
+
+  /** Canceled subscriptions in this period */
+  canceledSubscriptions: number
+
+  /** Currency code */
+  currency: string
+
+  /** When this data was fetched */
+  fetchedAt: string
+}
+
+/**
+ * Stripe charge/payment record.
+ */
+export interface StripeCharge {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** External Stripe charge ID */
+  externalId: string
+
+  /** Amount in cents */
+  amount: number
+
+  /** Currency code */
+  currency: string
+
+  /** Charge status */
+  status: 'succeeded' | 'pending' | 'failed' | 'refunded'
+
+  /** Customer email */
+  customerEmail?: string
+
+  /** Charge description */
+  description?: string
+
+  /** When the charge was created */
+  createdAt: string
+
+  /** When this was fetched */
+  fetchedAt: string
+}
+
+/**
+ * Status labels for Stripe charges.
+ */
+export const STRIPE_CHARGE_STATUS_LABELS: Record<StripeCharge['status'], string> = {
+  succeeded: 'Succeeded',
+  pending: 'Pending',
+  failed: 'Failed',
+  refunded: 'Refunded',
+}
+
+/**
+ * Status colors for Stripe charges.
+ */
+export const STRIPE_CHARGE_STATUS_COLORS: Record<StripeCharge['status'], string> = {
+  succeeded: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  refunded: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400',
+}
+
+// ========================================
 // VALIDATION SCHEMAS
 // ========================================
 
@@ -541,4 +641,97 @@ export function getReviewsNeedingResponse(
   return reviews
     .filter((r) => r.rating <= maxRating && !r.response)
     .sort((a, b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime())
+}
+
+// ========================================
+// STRIPE HELPER FUNCTIONS
+// ========================================
+
+/**
+ * Get the latest MRR from Stripe metrics.
+ *
+ * @param metrics - Array of Stripe metrics
+ * @returns Latest MRR in cents or 0 if no data
+ */
+export function getLatestMRR(metrics: StripeMetrics[]): number {
+  if (metrics.length === 0) return 0
+  const sorted = [...metrics].sort(
+    (a, b) => new Date(b.period).getTime() - new Date(a.period).getTime()
+  )
+  return sorted[0].mrr
+}
+
+/**
+ * Get total revenue from Stripe metrics.
+ *
+ * @param metrics - Array of Stripe metrics
+ * @returns Total revenue in cents
+ */
+export function getStripeTotalRevenue(metrics: StripeMetrics[]): number {
+  return metrics.reduce((sum, m) => sum + m.revenue, 0)
+}
+
+/**
+ * Get total active subscriptions from latest metrics.
+ *
+ * @param metrics - Array of Stripe metrics
+ * @returns Active subscriptions count
+ */
+export function getActiveSubscriptions(metrics: StripeMetrics[]): number {
+  if (metrics.length === 0) return 0
+  const sorted = [...metrics].sort(
+    (a, b) => new Date(b.period).getTime() - new Date(a.period).getTime()
+  )
+  return sorted[0].activeSubscriptions
+}
+
+/**
+ * Calculate churn rate from Stripe metrics.
+ *
+ * @param metrics - Array of Stripe metrics (should be sorted by period)
+ * @returns Churn rate as percentage or null if insufficient data
+ */
+export function calculateChurnRate(metrics: StripeMetrics[]): number | null {
+  if (metrics.length < 2) return null
+
+  const sorted = [...metrics].sort(
+    (a, b) => new Date(b.period).getTime() - new Date(a.period).getTime()
+  )
+
+  const current = sorted[0]
+  const previous = sorted[1]
+
+  if (previous.activeSubscriptions === 0) return null
+
+  const churnRate = (current.canceledSubscriptions / previous.activeSubscriptions) * 100
+  return Math.round(churnRate * 10) / 10
+}
+
+/**
+ * Get net subscription growth.
+ *
+ * @param metrics - Array of Stripe metrics
+ * @returns Net growth (new - canceled)
+ */
+export function getNetSubscriptionGrowth(metrics: StripeMetrics[]): number {
+  if (metrics.length === 0) return 0
+  const sorted = [...metrics].sort(
+    (a, b) => new Date(b.period).getTime() - new Date(a.period).getTime()
+  )
+  return sorted[0].newSubscriptions - sorted[0].canceledSubscriptions
+}
+
+/**
+ * Get total from Stripe charges.
+ *
+ * @param charges - Array of Stripe charges
+ * @param status - Optional status filter
+ * @returns Total amount in cents
+ */
+export function getChargesTotal(
+  charges: StripeCharge[],
+  status?: StripeCharge['status']
+): number {
+  const filtered = status ? charges.filter((c) => c.status === status) : charges
+  return filtered.reduce((sum, c) => sum + c.amount, 0)
 }

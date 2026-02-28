@@ -621,3 +621,145 @@ export async function syncIntegration(
     }
   }
 }
+
+// ========================================
+// STRIPE DATA
+// ========================================
+
+/**
+ * Get Stripe metrics for an integration.
+ */
+export async function getStripeMetrics(
+  integrationId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<ApiResponse<import('@/types/integrations').StripeMetrics[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    // Verify integration belongs to org
+    const db = adminDb()
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    // Query metrics
+    let query = db
+      .collection(COLLECTIONS.STRIPE_METRICS)
+      .where('integrationId', '==', integrationId)
+      .orderBy('period', 'desc')
+
+    const snapshot = await query.get()
+
+    let metrics = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as import('@/types/integrations').StripeMetrics[]
+
+    // Apply date filters in memory if provided
+    if (startDate) {
+      metrics = metrics.filter((m) => m.period >= startDate)
+    }
+    if (endDate) {
+      metrics = metrics.filter((m) => m.period <= endDate)
+    }
+
+    return { success: true, data: metrics }
+  } catch (error) {
+    console.error('Get Stripe metrics error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Stripe metrics' },
+    }
+  }
+}
+
+/**
+ * Get Stripe charges for an integration.
+ */
+export async function getStripeCharges(
+  integrationId: string,
+  limit = 50
+): Promise<ApiResponse<import('@/types/integrations').StripeCharge[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    // Verify integration belongs to org
+    const db = adminDb()
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    // Query charges
+    const snapshot = await db
+      .collection(COLLECTIONS.STRIPE_CHARGES)
+      .where('integrationId', '==', integrationId)
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get()
+
+    const charges = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as import('@/types/integrations').StripeCharge[]
+
+    return { success: true, data: charges }
+  } catch (error) {
+    console.error('Get Stripe charges error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Stripe charges' },
+    }
+  }
+}
