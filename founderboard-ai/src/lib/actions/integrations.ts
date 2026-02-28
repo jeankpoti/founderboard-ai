@@ -33,6 +33,13 @@ import type {
   GoogleAnalyticsMetrics,
   GoogleAnalyticsPageView,
   GoogleAnalyticsTrafficSource,
+  MixpanelEvent,
+  MixpanelFunnel,
+  MixpanelRetention,
+  IntercomConversation,
+  IntercomMetrics,
+  SlackNotificationConfig,
+  SlackNotificationLog,
 } from '@/types/integrations'
 import { logActivity } from './activity'
 
@@ -1245,6 +1252,565 @@ export async function getGoogleAnalyticsSources(
     return {
       success: false,
       error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Google Analytics sources' },
+    }
+  }
+}
+
+// ========================================
+// MIXPANEL DATA
+// ========================================
+
+/**
+ * Get Mixpanel events for an integration.
+ */
+export async function getMixpanelEvents(
+  integrationId: string,
+  limit = 50
+): Promise<ApiResponse<MixpanelEvent[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.MIXPANEL_EVENTS)
+      .where('integrationId', '==', integrationId)
+      .orderBy('eventCount', 'desc')
+      .limit(limit)
+      .get()
+
+    const events = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as MixpanelEvent[]
+
+    return { success: true, data: events }
+  } catch (error) {
+    console.error('Get Mixpanel events error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Mixpanel events' },
+    }
+  }
+}
+
+/**
+ * Get Mixpanel funnels for an integration.
+ */
+export async function getMixpanelFunnels(
+  integrationId: string
+): Promise<ApiResponse<MixpanelFunnel[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.MIXPANEL_FUNNELS)
+      .where('integrationId', '==', integrationId)
+      .orderBy('conversionRate', 'desc')
+      .get()
+
+    const funnels = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as MixpanelFunnel[]
+
+    return { success: true, data: funnels }
+  } catch (error) {
+    console.error('Get Mixpanel funnels error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Mixpanel funnels' },
+    }
+  }
+}
+
+/**
+ * Get Mixpanel retention data for an integration.
+ */
+export async function getMixpanelRetention(
+  integrationId: string
+): Promise<ApiResponse<MixpanelRetention[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.MIXPANEL_RETENTION)
+      .where('integrationId', '==', integrationId)
+      .orderBy('cohortDate', 'desc')
+      .limit(12)
+      .get()
+
+    const retention = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as MixpanelRetention[]
+
+    return { success: true, data: retention }
+  } catch (error) {
+    console.error('Get Mixpanel retention error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Mixpanel retention' },
+    }
+  }
+}
+
+// ========================================
+// INTERCOM DATA
+// ========================================
+
+/**
+ * Get Intercom conversations for an integration.
+ */
+export async function getIntercomConversations(
+  integrationId: string,
+  limit = 50
+): Promise<ApiResponse<IntercomConversation[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.INTERCOM_CONVERSATIONS)
+      .where('integrationId', '==', integrationId)
+      .orderBy('updatedAt', 'desc')
+      .limit(limit)
+      .get()
+
+    const conversations = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as IntercomConversation[]
+
+    return { success: true, data: conversations }
+  } catch (error) {
+    console.error('Get Intercom conversations error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Intercom conversations' },
+    }
+  }
+}
+
+/**
+ * Get Intercom metrics for an integration.
+ */
+export async function getIntercomMetrics(
+  integrationId: string
+): Promise<ApiResponse<IntercomMetrics[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.INTERCOM_METRICS)
+      .where('integrationId', '==', integrationId)
+      .orderBy('period', 'desc')
+      .get()
+
+    const metrics = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as IntercomMetrics[]
+
+    return { success: true, data: metrics }
+  } catch (error) {
+    console.error('Get Intercom metrics error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Intercom metrics' },
+    }
+  }
+}
+
+// ========================================
+// SLACK DATA
+// ========================================
+
+/**
+ * Get Slack notification config for an integration.
+ */
+export async function getSlackConfig(
+  integrationId: string
+): Promise<ApiResponse<SlackNotificationConfig | null>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.SLACK_NOTIFICATION_CONFIG)
+      .where('integrationId', '==', integrationId)
+      .limit(1)
+      .get()
+
+    if (snapshot.empty) {
+      return { success: true, data: null }
+    }
+
+    const doc = snapshot.docs[0]
+    const data = doc.data()
+    const config: SlackNotificationConfig = {
+      ...data,
+      id: doc.id,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+      updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
+    } as SlackNotificationConfig
+
+    return { success: true, data: config }
+  } catch (error) {
+    console.error('Get Slack config error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Slack config' },
+    }
+  }
+}
+
+/**
+ * Update Slack notification config.
+ */
+export async function updateSlackConfig(
+  integrationId: string,
+  config: Partial<SlackNotificationConfig>
+): Promise<ApiResponse<SlackNotificationConfig>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    if (orgContext.role !== 'owner' && orgContext.role !== 'admin') {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Only admins can update notification config' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const now = new Date().toISOString()
+
+    // Find or create config
+    const snapshot = await db
+      .collection(COLLECTIONS.SLACK_NOTIFICATION_CONFIG)
+      .where('integrationId', '==', integrationId)
+      .limit(1)
+      .get()
+
+    let configRef
+    let configData: SlackNotificationConfig
+
+    if (snapshot.empty) {
+      // Create new config
+      configRef = db.collection(COLLECTIONS.SLACK_NOTIFICATION_CONFIG).doc()
+      configData = {
+        id: configRef.id,
+        orgId: orgContext.organization.id,
+        integrationId,
+        events: {
+          milestoneCompleted: false,
+          roadmapUpdated: false,
+          taskCompleted: false,
+          documentShared: false,
+          teamMemberJoined: false,
+          fundraisingUpdate: false,
+        },
+        ...config,
+        createdAt: now,
+        updatedAt: now,
+      } as SlackNotificationConfig
+      await configRef.set(configData)
+    } else {
+      // Update existing config
+      configRef = snapshot.docs[0].ref
+      const existingData = snapshot.docs[0].data()
+      configData = {
+        ...existingData,
+        ...config,
+        id: snapshot.docs[0].id,
+        updatedAt: now,
+      } as SlackNotificationConfig
+      await configRef.update({ ...config, updatedAt: now })
+    }
+
+    return { success: true, data: configData }
+  } catch (error) {
+    console.error('Update Slack config error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to update Slack config' },
+    }
+  }
+}
+
+/**
+ * Get Slack notification logs for an integration.
+ */
+export async function getSlackNotificationLogs(
+  integrationId: string,
+  limit = 50
+): Promise<ApiResponse<SlackNotificationLog[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.SLACK_NOTIFICATION_LOGS)
+      .where('integrationId', '==', integrationId)
+      .orderBy('sentAt', 'desc')
+      .limit(limit)
+      .get()
+
+    const logs = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        sentAt: data.sentAt?.toDate?.()?.toISOString() || data.sentAt,
+      }
+    }) as SlackNotificationLog[]
+
+    return { success: true, data: logs }
+  } catch (error) {
+    console.error('Get Slack notification logs error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Slack notification logs' },
     }
   }
 }

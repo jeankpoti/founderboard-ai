@@ -283,6 +283,60 @@ export const COLLECTIONS = {
    * Traffic breakdown by source/medium
    */
   GOOGLE_ANALYTICS_SOURCES: 'google_analytics_sources',
+
+  // ========================================
+  // MIXPANEL INTEGRATION DATA
+  // ========================================
+
+  /**
+   * Mixpanel events
+   * Product analytics events
+   */
+  MIXPANEL_EVENTS: 'mixpanel_events',
+
+  /**
+   * Mixpanel funnels
+   * Conversion funnel data
+   */
+  MIXPANEL_FUNNELS: 'mixpanel_funnels',
+
+  /**
+   * Mixpanel retention
+   * User retention cohort data
+   */
+  MIXPANEL_RETENTION: 'mixpanel_retention',
+
+  // ========================================
+  // INTERCOM INTEGRATION DATA
+  // ========================================
+
+  /**
+   * Intercom conversations
+   * Customer support conversations
+   */
+  INTERCOM_CONVERSATIONS: 'intercom_conversations',
+
+  /**
+   * Intercom metrics
+   * Support metrics per period
+   */
+  INTERCOM_METRICS: 'intercom_metrics',
+
+  // ========================================
+  // SLACK INTEGRATION DATA
+  // ========================================
+
+  /**
+   * Slack notification config
+   * Channel and event configuration
+   */
+  SLACK_NOTIFICATION_CONFIG: 'slack_notification_config',
+
+  /**
+   * Slack notification logs
+   * History of sent notifications
+   */
+  SLACK_NOTIFICATION_LOGS: 'slack_notification_logs',
 } as const
 
 // ========================================
@@ -436,4 +490,32 @@ export function getGoogleAnalyticsPagesCollection(): CollectionReference<Documen
 
 export function getGoogleAnalyticsSourcesCollection(): CollectionReference<DocumentData> {
   return collection(getDb(), COLLECTIONS.GOOGLE_ANALYTICS_SOURCES)
+}
+
+export function getMixpanelEventsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.MIXPANEL_EVENTS)
+}
+
+export function getMixpanelFunnelsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.MIXPANEL_FUNNELS)
+}
+
+export function getMixpanelRetentionCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.MIXPANEL_RETENTION)
+}
+
+export function getIntercomConversationsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.INTERCOM_CONVERSATIONS)
+}
+
+export function getIntercomMetricsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.INTERCOM_METRICS)
+}
+
+export function getSlackNotificationConfigCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.SLACK_NOTIFICATION_CONFIG)
+}
+
+export function getSlackNotificationLogsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.SLACK_NOTIFICATION_LOGS)
 }

@@ -1324,3 +1324,466 @@ export function getTopPages(
     .sort((a, b) => b.pageviews - a.pageviews)
     .slice(0, limit)
 }
+
+// ========================================
+// MIXPANEL TYPES
+// ========================================
+
+/**
+ * Mixpanel event record.
+ */
+export interface MixpanelEvent {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Event name */
+  name: string
+
+  /** Total event count */
+  eventCount: number
+
+  /** Unique users who triggered this event */
+  uniqueUsers: number
+
+  /** Period (e.g., "2024-01-15") */
+  period: string
+
+  /** When this data was fetched */
+  fetchedAt: string
+}
+
+/**
+ * Mixpanel funnel record.
+ */
+export interface MixpanelFunnel {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Funnel name */
+  name: string
+
+  /** Overall conversion rate (percentage) */
+  conversionRate: number
+
+  /** Funnel steps with counts and dropoff */
+  steps: {
+    name: string
+    count: number
+    dropoff: number
+  }[]
+
+  /** Period (e.g., "2024-01-15") */
+  period: string
+
+  /** When this data was fetched */
+  fetchedAt: string
+}
+
+/**
+ * Mixpanel retention cohort record.
+ */
+export interface MixpanelRetention {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Cohort date */
+  cohortDate: string
+
+  /** Initial users in cohort */
+  day0Users: number
+
+  /** Day 1 retention percentage */
+  day1: number
+
+  /** Day 7 retention percentage */
+  day7: number
+
+  /** Day 14 retention percentage */
+  day14: number
+
+  /** Day 30 retention percentage */
+  day30: number
+
+  /** When this data was fetched */
+  fetchedAt: string
+}
+
+// ========================================
+// MIXPANEL HELPER FUNCTIONS
+// ========================================
+
+/**
+ * Get total events from Mixpanel data.
+ */
+export function getTotalMixpanelEvents(events: MixpanelEvent[]): number {
+  return events.reduce((sum, e) => sum + e.eventCount, 0)
+}
+
+/**
+ * Get total unique users from Mixpanel data.
+ */
+export function getTotalMixpanelUsers(events: MixpanelEvent[]): number {
+  // This is approximate - actual unique users would need deduplication
+  return Math.max(...events.map((e) => e.uniqueUsers), 0)
+}
+
+/**
+ * Get top events by count.
+ */
+export function getTopMixpanelEvents(
+  events: MixpanelEvent[],
+  limit = 10
+): MixpanelEvent[] {
+  return [...events]
+    .sort((a, b) => b.eventCount - a.eventCount)
+    .slice(0, limit)
+}
+
+/**
+ * Get average retention rate.
+ */
+export function getAverageRetention(
+  retention: MixpanelRetention[],
+  day: 'day1' | 'day7' | 'day14' | 'day30'
+): number | null {
+  if (retention.length === 0) return null
+  const sum = retention.reduce((acc, r) => acc + r[day], 0)
+  return Math.round((sum / retention.length) * 10) / 10
+}
+
+// ========================================
+// INTERCOM TYPES
+// ========================================
+
+/**
+ * Intercom conversation record.
+ */
+export interface IntercomConversation {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** External Intercom conversation ID */
+  externalId: string
+
+  /** Conversation subject/title */
+  subject: string
+
+  /** Customer name */
+  customerName: string
+
+  /** Customer email */
+  customerEmail: string
+
+  /** Assignee name */
+  assigneeName?: string
+
+  /** Conversation status */
+  status: 'open' | 'pending' | 'resolved' | 'closed'
+
+  /** Number of messages */
+  messageCount: number
+
+  /** First response time in minutes */
+  firstResponseTime?: number
+
+  /** Resolution time in minutes */
+  resolutionTime?: number
+
+  /** Customer rating (1-5) */
+  rating?: number
+
+  /** When the conversation was created */
+  createdAt: string
+
+  /** When the conversation was last updated */
+  updatedAt: string
+
+  /** When this data was fetched */
+  fetchedAt: string
+}
+
+/**
+ * Intercom metrics for a period.
+ */
+export interface IntercomMetrics {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Period (e.g., "2024-01-15") */
+  period: string
+
+  /** Total conversations */
+  totalConversations: number
+
+  /** Open conversations */
+  openConversations: number
+
+  /** Resolved conversations */
+  resolvedConversations: number
+
+  /** Average first response time in minutes */
+  avgFirstResponseTime: number
+
+  /** Average resolution time in minutes */
+  avgResolutionTime: number
+
+  /** Customer satisfaction score (0-100) */
+  satisfactionScore: number
+
+  /** When this data was fetched */
+  fetchedAt: string
+}
+
+/**
+ * Status labels for Intercom conversations.
+ */
+export const INTERCOM_STATUS_LABELS: Record<IntercomConversation['status'], string> = {
+  open: 'Open',
+  pending: 'Pending',
+  resolved: 'Resolved',
+  closed: 'Closed',
+}
+
+/**
+ * Status colors for Intercom conversations.
+ */
+export const INTERCOM_STATUS_COLORS: Record<IntercomConversation['status'], string> = {
+  open: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  resolved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  closed: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400',
+}
+
+// ========================================
+// INTERCOM HELPER FUNCTIONS
+// ========================================
+
+/**
+ * Get conversations by status.
+ */
+export function getConversationsByStatus(
+  conversations: IntercomConversation[]
+): Record<IntercomConversation['status'], number> {
+  const counts: Record<IntercomConversation['status'], number> = {
+    open: 0,
+    pending: 0,
+    resolved: 0,
+    closed: 0,
+  }
+
+  conversations.forEach((c) => {
+    counts[c.status]++
+  })
+
+  return counts
+}
+
+/**
+ * Get average first response time.
+ */
+export function getAvgFirstResponseTime(conversations: IntercomConversation[]): number | null {
+  const withResponse = conversations.filter((c) => c.firstResponseTime !== undefined)
+  if (withResponse.length === 0) return null
+  const sum = withResponse.reduce((acc, c) => acc + (c.firstResponseTime || 0), 0)
+  return Math.round(sum / withResponse.length)
+}
+
+/**
+ * Get average satisfaction rating.
+ */
+export function getAvgSatisfactionRating(conversations: IntercomConversation[]): number | null {
+  const withRating = conversations.filter((c) => c.rating !== undefined)
+  if (withRating.length === 0) return null
+  const sum = withRating.reduce((acc, c) => acc + (c.rating || 0), 0)
+  return Math.round((sum / withRating.length) * 10) / 10
+}
+
+/**
+ * Format response time for display.
+ */
+export function formatResponseTime(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  if (hours < 24) return `${hours}h ${remainingMinutes}m`
+  const days = Math.floor(hours / 24)
+  const remainingHours = hours % 24
+  return `${days}d ${remainingHours}h`
+}
+
+// ========================================
+// SLACK TYPES
+// ========================================
+
+/**
+ * Slack channel.
+ */
+export interface SlackChannel {
+  /** Channel ID */
+  id: string
+
+  /** Channel name */
+  name: string
+
+  /** Is private channel */
+  isPrivate: boolean
+}
+
+/**
+ * Slack notification configuration.
+ */
+export interface SlackNotificationConfig {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Default channel ID */
+  defaultChannelId?: string
+
+  /** Default channel name */
+  defaultChannelName?: string
+
+  /** Event subscriptions */
+  events: {
+    milestoneCompleted: boolean
+    roadmapUpdated: boolean
+    taskCompleted: boolean
+    documentShared: boolean
+    teamMemberJoined: boolean
+    fundraisingUpdate: boolean
+  }
+
+  /** When config was created */
+  createdAt: string
+
+  /** When config was last updated */
+  updatedAt: string
+}
+
+/**
+ * Slack notification log entry.
+ */
+export interface SlackNotificationLog {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** Channel name notification was sent to */
+  channelName: string
+
+  /** Event type that triggered notification */
+  eventType: string
+
+  /** Notification message */
+  message: string
+
+  /** Notification status */
+  status: 'sent' | 'failed'
+
+  /** Error message if failed */
+  errorMessage?: string
+
+  /** When notification was sent */
+  sentAt: string
+}
+
+/**
+ * Event type labels for Slack notifications.
+ */
+export const SLACK_EVENT_LABELS: Record<keyof SlackNotificationConfig['events'], string> = {
+  milestoneCompleted: 'Milestone Completed',
+  roadmapUpdated: 'Roadmap Updated',
+  taskCompleted: 'Task Completed',
+  documentShared: 'Document Shared',
+  teamMemberJoined: 'Team Member Joined',
+  fundraisingUpdate: 'Fundraising Update',
+}
+
+/**
+ * Event type icons for Slack notifications.
+ */
+export const SLACK_EVENT_ICONS: Record<keyof SlackNotificationConfig['events'], string> = {
+  milestoneCompleted: '🎯',
+  roadmapUpdated: '🗺️',
+  taskCompleted: '✅',
+  documentShared: '📄',
+  teamMemberJoined: '👋',
+  fundraisingUpdate: '💰',
+}
+
+// ========================================
+// SLACK HELPER FUNCTIONS
+// ========================================
+
+/**
+ * Get notification stats.
+ */
+export function getNotificationStats(
+  logs: SlackNotificationLog[]
+): { sent: number; failed: number; total: number } {
+  const sent = logs.filter((l) => l.status === 'sent').length
+  const failed = logs.filter((l) => l.status === 'failed').length
+  return { sent, failed, total: logs.length }
+}
+
+/**
+ * Get notifications by event type.
+ */
+export function getNotificationsByEventType(
+  logs: SlackNotificationLog[]
+): Record<string, number> {
+  const counts: Record<string, number> = {}
+
+  logs.forEach((log) => {
+    counts[log.eventType] = (counts[log.eventType] || 0) + 1
+  })
+
+  return counts
+}
+
+/**
+ * Get enabled events count.
+ */
+export function getEnabledEventsCount(config: SlackNotificationConfig): number {
+  return Object.values(config.events).filter(Boolean).length
+}
