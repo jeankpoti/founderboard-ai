@@ -11,7 +11,7 @@ const fadeInUp = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
+    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const }
   }
 }
 
@@ -39,7 +39,7 @@ const scaleIn = {
   visible: {
     opacity: 1,
     scale: 1,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
+    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const }
   }
 }
 
@@ -48,7 +48,7 @@ const slideInLeft = {
   visible: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
+    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const }
   }
 }
 
@@ -67,7 +67,7 @@ function FeatureCard({
       variants={fadeInUp}
       whileHover={{
         y: -8,
-        transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] }
+        transition: { duration: 0.3, ease: "easeOut" }
       }}
     >
       <Card className="h-full transition-shadow duration-300 hover:shadow-xl hover:shadow-primary/5 border-border/50 bg-card/50 backdrop-blur-sm">
@@ -130,7 +130,7 @@ export default function HomePage() {
         className="border-b bg-background/80 backdrop-blur-md sticky top-0 z-50"
         initial={{ y: -100 }}
         animate={{ y: 0 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="text-xl font-bold">
