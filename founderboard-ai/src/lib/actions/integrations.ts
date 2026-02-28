@@ -26,6 +26,10 @@ import type {
   UpdateIntegrationInput,
   AppStoreMetrics,
   AppReview,
+  GitHubCommit,
+  GitHubPullRequest,
+  GitHubIssue,
+  LinearIssue,
 } from '@/types/integrations'
 import { logActivity } from './activity'
 
@@ -760,6 +764,278 @@ export async function getStripeCharges(
     return {
       success: false,
       error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Stripe charges' },
+    }
+  }
+}
+
+// ========================================
+// GITHUB DATA
+// ========================================
+
+/**
+ * Get GitHub commits for an integration.
+ */
+export async function getGitHubCommits(
+  integrationId: string,
+  limit = 50
+): Promise<ApiResponse<GitHubCommit[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.GITHUB_COMMITS)
+      .where('integrationId', '==', integrationId)
+      .orderBy('committedAt', 'desc')
+      .limit(limit)
+      .get()
+
+    const commits = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        committedAt: data.committedAt?.toDate?.()?.toISOString() || data.committedAt,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as GitHubCommit[]
+
+    return { success: true, data: commits }
+  } catch (error) {
+    console.error('Get GitHub commits error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch GitHub commits' },
+    }
+  }
+}
+
+/**
+ * Get GitHub pull requests for an integration.
+ */
+export async function getGitHubPullRequests(
+  integrationId: string,
+  limit = 50
+): Promise<ApiResponse<GitHubPullRequest[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.GITHUB_PULL_REQUESTS)
+      .where('integrationId', '==', integrationId)
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get()
+
+    const prs = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+        mergedAt: data.mergedAt?.toDate?.()?.toISOString() || data.mergedAt,
+        closedAt: data.closedAt?.toDate?.()?.toISOString() || data.closedAt,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as GitHubPullRequest[]
+
+    return { success: true, data: prs }
+  } catch (error) {
+    console.error('Get GitHub PRs error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch GitHub pull requests' },
+    }
+  }
+}
+
+/**
+ * Get GitHub issues for an integration.
+ */
+export async function getGitHubIssues(
+  integrationId: string,
+  limit = 50
+): Promise<ApiResponse<GitHubIssue[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.GITHUB_ISSUES)
+      .where('integrationId', '==', integrationId)
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get()
+
+    const issues = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+        closedAt: data.closedAt?.toDate?.()?.toISOString() || data.closedAt,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as GitHubIssue[]
+
+    return { success: true, data: issues }
+  } catch (error) {
+    console.error('Get GitHub issues error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch GitHub issues' },
+    }
+  }
+}
+
+// ========================================
+// LINEAR DATA
+// ========================================
+
+/**
+ * Get Linear issues for an integration.
+ */
+export async function getLinearIssues(
+  integrationId: string,
+  limit = 100
+): Promise<ApiResponse<LinearIssue[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+
+    // Verify integration belongs to org
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    const snapshot = await db
+      .collection(COLLECTIONS.LINEAR_ISSUES)
+      .where('integrationId', '==', integrationId)
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get()
+
+    const issues = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+        completedAt: data.completedAt?.toDate?.()?.toISOString() || data.completedAt,
+        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+      }
+    }) as LinearIssue[]
+
+    return { success: true, data: issues }
+  } catch (error) {
+    console.error('Get Linear issues error:', error)
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Linear issues' },
     }
   }
 }

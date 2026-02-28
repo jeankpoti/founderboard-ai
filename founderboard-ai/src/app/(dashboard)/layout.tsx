@@ -95,6 +95,12 @@ const navigationItems = [
     icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
   },
   {
+    name: 'Dev Insights',
+    href: '/dev-insights',
+    // Code/terminal icon
+    icon: 'M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  },
+  {
     name: 'Fundraising',
     href: '/fundraising',
     // Dollar/money icon

@@ -229,6 +229,38 @@ export const COLLECTIONS = {
    * Individual payment records
    */
   STRIPE_CHARGES: 'stripe_charges',
+
+  // ========================================
+  // GITHUB INTEGRATION DATA
+  // ========================================
+
+  /**
+   * GitHub commits
+   * Commit records from connected repositories
+   */
+  GITHUB_COMMITS: 'github_commits',
+
+  /**
+   * GitHub pull requests
+   * PR records from connected repositories
+   */
+  GITHUB_PULL_REQUESTS: 'github_pull_requests',
+
+  /**
+   * GitHub issues
+   * Issue records from connected repositories
+   */
+  GITHUB_ISSUES: 'github_issues',
+
+  // ========================================
+  // LINEAR INTEGRATION DATA
+  // ========================================
+
+  /**
+   * Linear issues
+   * Issue records from Linear
+   */
+  LINEAR_ISSUES: 'linear_issues',
 } as const
 
 // ========================================
@@ -354,4 +386,20 @@ export function getStripeMetricsCollection(): CollectionReference<DocumentData> 
 
 export function getStripeChargesCollection(): CollectionReference<DocumentData> {
   return collection(getDb(), COLLECTIONS.STRIPE_CHARGES)
+}
+
+export function getGitHubCommitsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.GITHUB_COMMITS)
+}
+
+export function getGitHubPullRequestsCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.GITHUB_PULL_REQUESTS)
+}
+
+export function getGitHubIssuesCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.GITHUB_ISSUES)
+}
+
+export function getLinearIssuesCollection(): CollectionReference<DocumentData> {
+  return collection(getDb(), COLLECTIONS.LINEAR_ISSUES)
 }

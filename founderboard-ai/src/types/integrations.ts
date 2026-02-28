@@ -735,3 +735,377 @@ export function getChargesTotal(
   const filtered = status ? charges.filter((c) => c.status === status) : charges
   return filtered.reduce((sum, c) => sum + c.amount, 0)
 }
+
+// ========================================
+// GITHUB TYPES
+// ========================================
+
+/**
+ * GitHub commit record.
+ */
+export interface GitHubCommit {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** External GitHub commit SHA */
+  externalId: string
+
+  /** Commit message */
+  message: string
+
+  /** Author name */
+  authorName: string
+
+  /** Author email */
+  authorEmail?: string
+
+  /** Author avatar URL */
+  authorAvatar?: string
+
+  /** Repository name (owner/repo) */
+  repository: string
+
+  /** Branch name */
+  branch?: string
+
+  /** Files changed count */
+  filesChanged?: number
+
+  /** Additions count */
+  additions?: number
+
+  /** Deletions count */
+  deletions?: number
+
+  /** When the commit was created */
+  committedAt: string
+
+  /** When this was fetched */
+  fetchedAt: string
+}
+
+/**
+ * GitHub pull request record.
+ */
+export interface GitHubPullRequest {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** External GitHub PR number */
+  externalId: string
+
+  /** PR title */
+  title: string
+
+  /** PR description */
+  body?: string
+
+  /** PR state */
+  state: 'open' | 'closed' | 'merged'
+
+  /** Author name */
+  authorName: string
+
+  /** Author avatar URL */
+  authorAvatar?: string
+
+  /** Repository name (owner/repo) */
+  repository: string
+
+  /** Source branch */
+  headBranch: string
+
+  /** Target branch */
+  baseBranch: string
+
+  /** Number of commits */
+  commits?: number
+
+  /** Additions count */
+  additions?: number
+
+  /** Deletions count */
+  deletions?: number
+
+  /** Number of comments */
+  comments?: number
+
+  /** When the PR was created */
+  createdAt: string
+
+  /** When the PR was merged (if merged) */
+  mergedAt?: string
+
+  /** When the PR was closed (if closed) */
+  closedAt?: string
+
+  /** When this was fetched */
+  fetchedAt: string
+}
+
+/**
+ * GitHub issue record.
+ */
+export interface GitHubIssue {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** External GitHub issue number */
+  externalId: string
+
+  /** Issue title */
+  title: string
+
+  /** Issue body */
+  body?: string
+
+  /** Issue state */
+  state: 'open' | 'closed'
+
+  /** Author name */
+  authorName: string
+
+  /** Author avatar URL */
+  authorAvatar?: string
+
+  /** Repository name (owner/repo) */
+  repository: string
+
+  /** Labels */
+  labels?: string[]
+
+  /** Assignees */
+  assignees?: string[]
+
+  /** Number of comments */
+  comments?: number
+
+  /** When the issue was created */
+  createdAt: string
+
+  /** When the issue was closed */
+  closedAt?: string
+
+  /** When this was fetched */
+  fetchedAt: string
+}
+
+// ========================================
+// LINEAR TYPES
+// ========================================
+
+/**
+ * Linear issue record.
+ */
+export interface LinearIssue {
+  /** Unique identifier */
+  id: string
+
+  /** Organization this belongs to */
+  orgId: string
+
+  /** Integration ID this came from */
+  integrationId: string
+
+  /** External Linear issue ID */
+  externalId: string
+
+  /** Issue identifier (e.g., "ENG-123") */
+  identifier: string
+
+  /** Issue title */
+  title: string
+
+  /** Issue description */
+  description?: string
+
+  /** Issue state */
+  state: 'backlog' | 'todo' | 'in_progress' | 'done' | 'canceled'
+
+  /** Priority (0-4, 0 = no priority, 1 = urgent, 4 = low) */
+  priority?: number
+
+  /** Assignee name */
+  assigneeName?: string
+
+  /** Assignee avatar URL */
+  assigneeAvatar?: string
+
+  /** Team name */
+  teamName: string
+
+  /** Project name */
+  projectName?: string
+
+  /** Labels */
+  labels?: string[]
+
+  /** Estimate (story points) */
+  estimate?: number
+
+  /** Due date */
+  dueDate?: string
+
+  /** When the issue was created */
+  createdAt: string
+
+  /** When the issue was completed */
+  completedAt?: string
+
+  /** When this was fetched */
+  fetchedAt: string
+}
+
+/**
+ * Status labels for Linear issues.
+ */
+export const LINEAR_STATE_LABELS: Record<LinearIssue['state'], string> = {
+  backlog: 'Backlog',
+  todo: 'To Do',
+  in_progress: 'In Progress',
+  done: 'Done',
+  canceled: 'Canceled',
+}
+
+/**
+ * Status colors for Linear issues.
+ */
+export const LINEAR_STATE_COLORS: Record<LinearIssue['state'], string> = {
+  backlog: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400',
+  todo: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  in_progress: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  done: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  canceled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+}
+
+/**
+ * Status labels for GitHub PRs.
+ */
+export const GITHUB_PR_STATE_LABELS: Record<GitHubPullRequest['state'], string> = {
+  open: 'Open',
+  closed: 'Closed',
+  merged: 'Merged',
+}
+
+/**
+ * Status colors for GitHub PRs.
+ */
+export const GITHUB_PR_STATE_COLORS: Record<GitHubPullRequest['state'], string> = {
+  open: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  closed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  merged: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+}
+
+// ========================================
+// DEV INSIGHTS HELPER FUNCTIONS
+// ========================================
+
+/**
+ * Get total commits count.
+ */
+export function getTotalCommits(commits: GitHubCommit[]): number {
+  return commits.length
+}
+
+/**
+ * Get total lines changed from commits.
+ */
+export function getTotalLinesChanged(commits: GitHubCommit[]): number {
+  return commits.reduce((sum, c) => sum + (c.additions || 0) + (c.deletions || 0), 0)
+}
+
+/**
+ * Get PR merge rate (percentage of closed PRs that are merged).
+ */
+export function getPRMergeRate(prs: GitHubPullRequest[]): number | null {
+  const closedPRs = prs.filter((pr) => pr.state === 'closed' || pr.state === 'merged')
+  if (closedPRs.length === 0) return null
+  const mergedPRs = prs.filter((pr) => pr.state === 'merged')
+  return Math.round((mergedPRs.length / closedPRs.length) * 100)
+}
+
+/**
+ * Get open issues count.
+ */
+export function getOpenIssuesCount(issues: GitHubIssue[]): number {
+  return issues.filter((i) => i.state === 'open').length
+}
+
+/**
+ * Get Linear issues by state.
+ */
+export function getLinearIssuesByState(
+  issues: LinearIssue[]
+): Record<LinearIssue['state'], number> {
+  const counts: Record<LinearIssue['state'], number> = {
+    backlog: 0,
+    todo: 0,
+    in_progress: 0,
+    done: 0,
+    canceled: 0,
+  }
+
+  issues.forEach((issue) => {
+    counts[issue.state]++
+  })
+
+  return counts
+}
+
+/**
+ * Calculate velocity from Linear issues (completed story points per week).
+ */
+export function calculateVelocity(issues: LinearIssue[], weeks = 4): number | null {
+  const now = new Date()
+  const cutoff = new Date(now.getTime() - weeks * 7 * 24 * 60 * 60 * 1000)
+
+  const completedIssues = issues.filter(
+    (i) => i.state === 'done' && i.completedAt && new Date(i.completedAt) >= cutoff
+  )
+
+  if (completedIssues.length === 0) return null
+
+  const totalPoints = completedIssues.reduce((sum, i) => sum + (i.estimate || 1), 0)
+  return Math.round(totalPoints / weeks)
+}
+
+/**
+ * Get top contributors from commits.
+ */
+export function getTopContributors(
+  commits: GitHubCommit[],
+  limit = 5
+): { name: string; avatar?: string; commits: number }[] {
+  const contributorMap = new Map<string, { avatar?: string; commits: number }>()
+
+  commits.forEach((commit) => {
+    const existing = contributorMap.get(commit.authorName) || { commits: 0 }
+    contributorMap.set(commit.authorName, {
+      avatar: commit.authorAvatar || existing.avatar,
+      commits: existing.commits + 1,
+    })
+  })
+
+  return Array.from(contributorMap.entries())
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.commits - a.commits)
+    .slice(0, limit)
+}
