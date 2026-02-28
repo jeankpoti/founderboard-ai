@@ -31,7 +31,7 @@ export default function HomePage() {
               <span className="text-primary">Startup Founders</span>
             </h1>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Track your metrics, generate investor updates, and manage tasks - all in one place.
+              Track metrics, manage your roadmap, coordinate your team, and generate investor updates - all in one place.
               Built by founders, for founders.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -49,10 +49,10 @@ export default function HomePage() {
         <section id="features" className="py-20 px-4 bg-muted/30">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4">Everything You Need</h2>
+              <h2 className="text-3xl font-bold mb-4">Everything You Need to Build and Scale</h2>
               <p className="text-muted-foreground max-w-xl mx-auto">
-                Powerful tools designed specifically for startup founders to stay organized and
-                communicate effectively.
+                Powerful tools designed specifically for startup founders to stay organized,
+                collaborate effectively, and communicate with investors.
               </p>
             </div>
 
@@ -109,6 +109,32 @@ export default function HomePage() {
                 </CardContent>
               </Card>
 
+              {/* Product Roadmap Feature */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <svg
+                      className="h-6 w-6 text-primary"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">Product Roadmap</h3>
+                  <p className="text-muted-foreground">
+                    Plan and visualize your product timeline with milestones. Track progress from
+                    ideation to launch.
+                  </p>
+                </CardContent>
+              </Card>
+
               {/* Task Board Feature */}
               <Card>
                 <CardContent className="pt-6">
@@ -134,6 +160,139 @@ export default function HomePage() {
                   </p>
                 </CardContent>
               </Card>
+
+              {/* Team Management Feature */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <svg
+                      className="h-6 w-6 text-primary"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">Team Management</h3>
+                  <p className="text-muted-foreground">
+                    Invite team members with role-based permissions. Track activity and collaborate
+                    in real-time.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Calendar Feature */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <svg
+                      className="h-6 w-6 text-primary"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">Calendar</h3>
+                  <p className="text-muted-foreground">
+                    Schedule meetings, track deadlines, and manage important events in a unified
+                    calendar view.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Second row of features */}
+            <div className="grid md:grid-cols-3 gap-6 mt-6">
+              {/* OKRs Feature */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <svg
+                      className="h-6 w-6 text-primary"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">OKRs</h3>
+                  <p className="text-muted-foreground">
+                    Set objectives and track progress with measurable key results. Align your team
+                    around goals.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Documents Feature */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <svg
+                      className="h-6 w-6 text-primary"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">Documents & Notes</h3>
+                  <p className="text-muted-foreground">
+                    Store and organize important files. Create notes and use templates for consistent
+                    documentation.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Integrations Feature */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <svg
+                      className="h-6 w-6 text-primary"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">Integrations</h3>
+                  <p className="text-muted-foreground">
+                    Connect your favorite tools like Stripe, GitHub, and Slack to sync data
+                    automatically.
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </section>
@@ -147,7 +306,7 @@ export default function HomePage() {
               FounderBoard AI.
             </p>
 
-            <Card className="max-w-sm mx-auto">
+            <Card className="max-w-md mx-auto">
               <CardContent className="pt-6">
                 <div className="mb-4">
                   <span className="text-4xl font-bold">Free</span>
@@ -156,7 +315,7 @@ export default function HomePage() {
                 <ul className="text-left space-y-2 mb-6">
                   <li className="flex items-center gap-2">
                     <svg
-                      className="h-5 w-5 text-green-500"
+                      className="h-5 w-5 text-green-500 flex-shrink-0"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -168,11 +327,11 @@ export default function HomePage() {
                         d="M5 13l4 4L19 7"
                       />
                     </svg>
-                    Full metrics dashboard
+                    Full metrics dashboard with charts
                   </li>
                   <li className="flex items-center gap-2">
                     <svg
-                      className="h-5 w-5 text-green-500"
+                      className="h-5 w-5 text-green-500 flex-shrink-0"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -184,11 +343,27 @@ export default function HomePage() {
                         d="M5 13l4 4L19 7"
                       />
                     </svg>
-                    AI content generation
+                    AI-powered content generation
                   </li>
                   <li className="flex items-center gap-2">
                     <svg
-                      className="h-5 w-5 text-green-500"
+                      className="h-5 w-5 text-green-500 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    Product roadmap with milestones
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg
+                      className="h-5 w-5 text-green-500 flex-shrink-0"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -204,7 +379,7 @@ export default function HomePage() {
                   </li>
                   <li className="flex items-center gap-2">
                     <svg
-                      className="h-5 w-5 text-green-500"
+                      className="h-5 w-5 text-green-500 flex-shrink-0"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -216,7 +391,71 @@ export default function HomePage() {
                         d="M5 13l4 4L19 7"
                       />
                     </svg>
-                    Team collaboration
+                    Team management with roles
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg
+                      className="h-5 w-5 text-green-500 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    Calendar and event scheduling
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg
+                      className="h-5 w-5 text-green-500 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    OKRs and goal tracking
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg
+                      className="h-5 w-5 text-green-500 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    Documents, notes, and templates
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg
+                      className="h-5 w-5 text-green-500 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    Third-party integrations
                   </li>
                 </ul>
                 <Button className="w-full" asChild>

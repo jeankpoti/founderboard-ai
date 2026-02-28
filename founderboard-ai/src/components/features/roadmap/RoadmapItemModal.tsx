@@ -280,12 +280,12 @@ export function RoadmapItemModal({
 
             <div className="space-y-2">
               <Label>Milestone</Label>
-              <Select value={milestoneId} onValueChange={setMilestoneId}>
+              <Select value={milestoneId || 'none'} onValueChange={(v) => setMilestoneId(v === 'none' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {milestones.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.name}
