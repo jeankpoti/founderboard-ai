@@ -22,14 +22,14 @@ export interface SessionResult {
  * This should be called from Server Components or Server Actions.
  */
 export async function verifySession(): Promise<SessionResult> {
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value
+
+  if (!sessionCookie) {
+    return { user: null, error: 'No session cookie found' }
+  }
+
   try {
-    const cookieStore = await cookies()
-    const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value
-
-    if (!sessionCookie) {
-      return { user: null, error: 'No session cookie found' }
-    }
-
     // Verify the session cookie with Firebase Admin
     const decodedClaims = await adminAuth().verifySessionCookie(sessionCookie, true)
 
@@ -60,6 +60,7 @@ export async function verifySession(): Promise<SessionResult> {
     return { user: null, error: 'Session invalid or expired' }
   }
 }
+
 
 /**
  * Gets the current user from the session.

@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
 
 // Delete session cookie (logout)
 export async function DELETE() {
+  const cookieStore = await cookies()
   try {
-    const cookieStore = await cookies()
     cookieStore.delete(SESSION_COOKIE_NAME)
 
     return NextResponse.json({ success: true, data: null })
@@ -78,17 +78,17 @@ export async function DELETE() {
 
 // Verify session and return user data
 export async function GET() {
+  const cookieStore = await cookies()
+  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value
+
+  if (!sessionCookie) {
+    return NextResponse.json(
+      { success: false, error: { code: 'NO_SESSION', message: 'No session found' } },
+      { status: 401 }
+    )
+  }
+
   try {
-    const cookieStore = await cookies()
-    const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value
-
-    if (!sessionCookie) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NO_SESSION', message: 'No session found' } },
-        { status: 401 }
-      )
-    }
-
     // Verify the session cookie
     const decodedClaims = await adminAuth().verifySessionCookie(sessionCookie, true)
 
