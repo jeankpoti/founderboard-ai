@@ -9,10 +9,12 @@ import { toast } from 'sonner'
 
 interface SignOutButtonProps {
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'
+  size?: 'default' | 'sm' | 'lg' | 'icon'
   className?: string
+  title?: string
 }
 
-export function SignOutButton({ variant = 'ghost', className }: SignOutButtonProps) {
+export function SignOutButton({ variant = 'ghost', size, className, title }: SignOutButtonProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
@@ -48,11 +50,29 @@ export function SignOutButton({ variant = 'ghost', className }: SignOutButtonPro
   return (
     <Button
       variant={variant}
+      size={size}
       onClick={handleSignOut}
       disabled={isLoading}
       className={className}
+      title={title}
     >
-      {isLoading ? 'Signing out...' : 'Sign out'}
+      {size === 'icon' ? (
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+          />
+        </svg>
+      ) : (
+        isLoading ? 'Signing out...' : 'Sign out'
+      )}
     </Button>
   )
 }

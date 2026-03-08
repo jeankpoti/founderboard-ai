@@ -13,12 +13,11 @@
  * - Great for things like sidebars and headers
  */
 
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { verifySession } from '@/lib/auth/session'
 import { getOrgContext, getUserOrganizations } from '@/lib/auth/org-context'
 import { SignOutButton } from '@/components/features/auth'
-import { OrgSwitcher } from '@/components/features/organization'
+import { Sidebar } from '@/components/features/layout'
 
 // ========================================
 // NAVIGATION CONFIGURATION
@@ -240,60 +239,12 @@ export default async function DashboardLayout({
       {/* SIDEBAR - hidden during onboarding and on mobile */}
       {/* ======================================== */}
       {!needsOnboarding && orgContext && (
-        <aside className="w-64 border-r bg-muted/30 p-4 hidden md:flex md:flex-col">
-          {/* Organization Switcher */}
-          <div className="mb-6">
-            <OrgSwitcher
-              currentOrg={orgContext.organization}
-              organizations={organizations}
-            />
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1 flex-1">
-            {navigationItems.map((item, index) => (
-              <div key={item.href}>
-                {/* Section Header (if this item starts a new section) */}
-                {item.section && index > 0 && (
-                  <p className="text-xs font-medium text-muted-foreground px-2 pt-4 pb-2">
-                    {item.section}
-                  </p>
-                )}
-
-                {/* Navigation Link */}
-                <Link
-                  href={item.href}
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
-                >
-                  {/* Icon */}
-                  <svg
-                    className="h-4 w-4 flex-shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d={item.icon}
-                    />
-                  </svg>
-                  {/* Label */}
-                  {item.name}
-                </Link>
-              </div>
-            ))}
-          </nav>
-
-          {/* User Section (at bottom of sidebar) */}
-          <div className="pt-4 border-t space-y-2">
-            <p className="text-xs text-muted-foreground px-2 truncate">
-              {user.email}
-            </p>
-            <SignOutButton variant="outline" className="w-full" />
-          </div>
-        </aside>
+        <Sidebar
+          currentOrg={orgContext.organization}
+          organizations={organizations}
+          userEmail={user.email}
+          navigationItems={navigationItems}
+        />
       )}
 
       {/* ======================================== */}

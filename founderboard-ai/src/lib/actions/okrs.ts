@@ -33,6 +33,20 @@ import type {
 import { logActivity } from './activity'
 
 // ========================================
+// UTILITIES
+// ========================================
+
+/**
+ * Remove undefined values from an object.
+ * Firestore doesn't accept undefined values, so we filter them out.
+ */
+function removeUndefined<T extends Record<string, unknown>>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([_, v]) => v !== undefined)
+  ) as T
+}
+
+// ========================================
 // OBJECTIVES
 // ========================================
 
@@ -202,7 +216,7 @@ export async function createObjective(
       updatedAt: now,
     }
 
-    await objectiveRef.set(objectiveData)
+    await objectiveRef.set(removeUndefined(objectiveData))
 
     // Log activity
     await logActivity({
@@ -305,7 +319,7 @@ export async function updateObjective(
       }
     }
 
-    await objectiveRef.update(updateData)
+    await objectiveRef.update(removeUndefined(updateData))
 
     // Log activity
     await logActivity({
@@ -541,7 +555,7 @@ export async function createKeyResult(
       updatedAt: now,
     }
 
-    await keyResultRef.set(keyResultData)
+    await keyResultRef.set(removeUndefined(keyResultData))
 
     // Update objective progress
     await updateObjectiveProgressFromKeyResults(validation.data.objectiveId)
@@ -631,7 +645,7 @@ export async function updateKeyResult(
       updatedAt: new Date().toISOString(),
     }
 
-    await keyResultRef.update(updateData)
+    await keyResultRef.update(removeUndefined(updateData))
 
     // Update objective progress
     await updateObjectiveProgressFromKeyResults(existingData.objectiveId)
@@ -827,7 +841,7 @@ export async function createCheckIn(
       createdAt: now,
     }
 
-    await checkInRef.set(checkInData)
+    await checkInRef.set(removeUndefined(checkInData))
 
     // Update key result with new value
     const progress = calculateKeyResultProgress(

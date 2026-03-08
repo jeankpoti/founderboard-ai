@@ -43,6 +43,20 @@ import type {
 import { logActivity } from './activity'
 
 // ========================================
+// UTILITIES
+// ========================================
+
+/**
+ * Remove undefined values from an object.
+ * Firestore doesn't accept undefined values, so we filter them out.
+ */
+function removeUndefined<T extends Record<string, unknown>>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([_, v]) => v !== undefined)
+  ) as T
+}
+
+// ========================================
 // INVESTOR CRUD OPERATIONS
 // ========================================
 
@@ -241,7 +255,7 @@ export async function createInvestor(
       updatedAt: now,
     }
 
-    await investorRef.set(investorData)
+    await investorRef.set(removeUndefined(investorData))
 
     const createdInvestor = { id: investorRef.id, ...investorData } as Investor
 
@@ -375,7 +389,7 @@ export async function updateInvestor(
       }
     }
 
-    await investorRef.update(updateData)
+    await investorRef.update(removeUndefined(updateData))
 
     // Log stage changes
     if (data.stage && data.stage !== existingInvestor.stage) {

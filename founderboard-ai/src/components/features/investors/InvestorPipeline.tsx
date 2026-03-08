@@ -117,7 +117,7 @@ function PipelineColumn({
 
   return (
     <div
-      className={`flex flex-col min-w-[280px] max-w-[280px] rounded-lg bg-muted/50 ${
+      className={`flex flex-col rounded-lg bg-muted/50 ${
         isDragOver ? 'ring-2 ring-primary ring-offset-2' : ''
       }`}
       onDragOver={handleDragOver}
@@ -128,13 +128,11 @@ function PipelineColumn({
       <div className="p-3 border-b">
         <div className="flex items-center justify-between">
           {/* Stage Label with Color Badge */}
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${INVESTOR_STAGE_COLORS[stage]}`}
-            >
-              {INVESTOR_STAGE_LABELS[stage]}
-            </span>
-          </div>
+          <span
+            className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${INVESTOR_STAGE_COLORS[stage]}`}
+          >
+            {INVESTOR_STAGE_LABELS[stage]}
+          </span>
           {/* Count Badge */}
           <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded-full">
             {investors.length}
@@ -143,7 +141,7 @@ function PipelineColumn({
       </div>
 
       {/* Column Content - List of Investor Cards */}
-      <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-250px)]">
+      <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[400px]">
         {investors.length === 0 ? (
           // Empty state
           <div className="text-center text-sm text-muted-foreground py-8">
@@ -361,11 +359,11 @@ export function InvestorPipeline() {
 
       {/* Loading State */}
       {isLoading && !investorsByStage && (
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {INVESTOR_STAGES.slice(0, 6).map((stage) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-4">
+          {INVESTOR_STAGES.map((stage) => (
             <div
               key={stage}
-              className="min-w-[280px] max-w-[280px] h-[400px] rounded-lg bg-muted/50"
+              className="h-[400px] rounded-lg bg-muted/50"
             >
               <div className="p-3 border-b">
                 <Skeleton className="h-6 w-24" />
@@ -381,7 +379,7 @@ export function InvestorPipeline() {
 
       {/* Pipeline Board */}
       {investorsByStage && (
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-4">
           {/*
             Map through all stages to create columns.
             We show all stages even if empty.
