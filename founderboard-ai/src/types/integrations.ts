@@ -252,6 +252,8 @@ export type IntegrationConfig = {
   githubRepo?: string
   /** App Store: App ID */
   appStoreAppId?: string
+  /** App Store: Vendor Number (required for sales/downloads reports) */
+  vendorNumber?: string
   /** Google Play: Package name */
   playPackageName?: string
   /** Sync frequency in minutes */
@@ -494,6 +496,7 @@ export const connectIntegrationSchema = z.object({
     slackChannel: z.string().optional(),
     githubRepo: z.string().optional(),
     appStoreAppId: z.string().optional(),
+    vendorNumber: z.string().optional(),
     playPackageName: z.string().optional(),
     syncFrequency: z.number().min(5).max(1440).optional(),
     syncOptions: z.array(z.string()).optional(),
@@ -510,6 +513,7 @@ export const updateIntegrationSchema = z.object({
     slackChannel: z.string().optional(),
     githubRepo: z.string().optional(),
     appStoreAppId: z.string().optional(),
+    vendorNumber: z.string().optional(),
     playPackageName: z.string().optional(),
     syncFrequency: z.number().min(5).max(1440).optional(),
     syncOptions: z.array(z.string()).optional(),

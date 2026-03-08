@@ -174,12 +174,13 @@ export async function getMetricSnapshots(
     const db = adminDb()
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)
+    const startDateStr = startDate.toISOString()
 
     const snapshot = await db
       .collection(COLLECTIONS.METRIC_SNAPSHOTS)
       .where('orgId', '==', orgContext.organization.id)
       .where('type', '==', type)
-      .where('recordedAt', '>=', startDate)
+      .where('recordedAt', '>=', startDateStr)
       .orderBy('recordedAt', 'asc')
       .get()
 

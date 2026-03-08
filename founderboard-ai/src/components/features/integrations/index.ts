@@ -4,3 +4,4 @@
 
 export { IntegrationsHub } from './IntegrationsHub'
 export { ConnectIntegrationModal } from './ConnectIntegrationModal'
+export { EditIntegrationModal } from './EditIntegrationModal'

@@ -45,7 +45,130 @@ import { logActivity } from './activity'
 import {
   AppStoreConnectClient,
   calculateAverageRating,
+  type AppStoreApp,
 } from '@/lib/integrations/appStoreConnectClient'
+
+// ========================================
+// APP STORE CONNECT - FETCH APPS
+// ========================================
+
+/**
+ * Fetch available apps from App Store Connect using provided credentials.
+ * Used during integration setup to let users select which app to track.
+ */
+export async function fetchAppStoreApps(credentials: {
+  issuerId: string
+  keyId: string
+  privateKey: string
+}): Promise<ApiResponse<AppStoreApp[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    // Validate credentials are provided
+    if (!credentials.issuerId || !credentials.keyId || !credentials.privateKey) {
+      return {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Missing required credentials' },
+      }
+    }
+
+    // Create client and fetch apps
+    const client = new AppStoreConnectClient({
+      issuerId: credentials.issuerId,
+      keyId: credentials.keyId,
+      privateKey: credentials.privateKey,
+    })
+
+    const apps = await client.getApps()
+
+    return { success: true, data: apps }
+  } catch (error) {
+    console.error('Fetch App Store apps error:', error)
+    const message = error instanceof Error ? error.message : 'Failed to fetch apps'
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message },
+    }
+  }
+}
+
+/**
+ * Fetch available apps from App Store Connect using an existing integration's stored credentials.
+ * Used when editing an integration to change the selected app.
+ */
+export async function fetchAppStoreAppsForIntegration(
+  integrationId: string
+): Promise<ApiResponse<AppStoreApp[]>> {
+  try {
+    const orgContext = await getOrgContext()
+    if (!orgContext) {
+      return {
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' },
+      }
+    }
+
+    const db = adminDb()
+    const integrationDoc = await db
+      .collection(COLLECTIONS.INTEGRATIONS)
+      .doc(integrationId)
+      .get()
+
+    if (!integrationDoc.exists) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+      }
+    }
+
+    const data = integrationDoc.data()!
+    if (data.orgId !== orgContext.organization.id) {
+      return {
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+      }
+    }
+
+    if (data.type !== 'app_store_connect') {
+      return {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Integration is not App Store Connect' },
+      }
+    }
+
+    const credentials = data.credentials as IntegrationCredentials
+    if (!credentials.issuerId || !credentials.keyId || !credentials.privateKey) {
+      return {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Integration missing credentials' },
+      }
+    }
+
+    // Create client and fetch apps
+    const client = new AppStoreConnectClient({
+      issuerId: credentials.issuerId,
+      keyId: credentials.keyId,
+      privateKey: credentials.privateKey,
+    })
+
+    const apps = await client.getApps()
+
+    return { success: true, data: apps }
+  } catch (error) {
+    console.error('Fetch App Store apps for integration error:', error)
+    const message = error instanceof Error ? error.message : 'Failed to fetch apps'
+    return {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message },
+    }
+  }
+}
 
 // ========================================
 // GET INTEGRATIONS
@@ -434,6 +557,7 @@ export async function disconnectIntegration(
 
 /**
  * Get app store metrics for an integration.
+ * Fetches directly from App Store Connect API (not from Firestore).
  */
 export async function getAppStoreMetrics(
   integrationId: string,
@@ -451,7 +575,7 @@ export async function getAppStoreMetrics(
 
     const db = adminDb()
 
-    // Verify integration belongs to org
+    // Get integration with credentials
     const integrationDoc = await db
       .collection(COLLECTIONS.INTEGRATIONS)
       .doc(integrationId)
@@ -464,43 +588,154 @@ export async function getAppStoreMetrics(
       }
     }
 
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+    const integrationData = integrationDoc.data()!
+    if (integrationData.orgId !== orgContext.organization.id) {
       return {
         success: false,
         error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
       }
     }
 
-    let query = db
-      .collection(COLLECTIONS.APP_STORE_METRICS)
-      .where('integrationId', '==', integrationId)
-
-    if (startDate) {
-      query = query.where('period', '>=', startDate)
-    }
-    if (endDate) {
-      query = query.where('period', '<=', endDate)
+    // Only App Store Connect is supported for now
+    if (integrationData.type !== 'app_store_connect') {
+      return { success: true, data: [] }
     }
 
-    query = query.orderBy('period', 'desc')
+    const credentials = integrationData.credentials as IntegrationCredentials
+    const config = integrationData.config as { appStoreAppId?: string; vendorNumber?: string }
 
-    const snapshot = await query.get()
-
-    const metrics = snapshot.docs.map((doc) => {
-      const data = doc.data()
+    // Validate credentials
+    if (!credentials.issuerId || !credentials.keyId || !credentials.privateKey) {
       return {
-        ...data,
-        id: doc.id,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Missing App Store Connect credentials' },
       }
-    }) as AppStoreMetrics[]
+    }
+
+    // Create API client
+    const client = new AppStoreConnectClient({
+      issuerId: credentials.issuerId,
+      keyId: credentials.keyId,
+      privateKey: credentials.privateKey,
+    })
+
+    // Get apps and select the configured one
+    const apps = await client.getApps()
+    if (apps.length === 0) {
+      return { success: true, data: [] }
+    }
+
+    const targetAppId = config.appStoreAppId
+    const app = targetAppId
+      ? apps.find((a) => a.id === targetAppId) || apps[0]
+      : apps[0]
+
+    console.log(`[getAppStoreMetrics] Selected app: ${app.name} (ID: ${app.id})`)
+
+    // Fetch reviews to get rating data
+    const reviews = await client.getCustomerReviews(app.id, 50)
+    const avgRating = calculateAverageRating(reviews)
+
+    // Build date range for fetching
+    const today = new Date()
+    const dates: string[] = []
+
+    // Determine how many days to fetch based on date range
+    let daysToFetch: number
+    if (!startDate) {
+      // "All Time" - fetch maximum available data (365 days)
+      daysToFetch = 365
+    } else {
+      const start = new Date(startDate)
+      daysToFetch = Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+      daysToFetch = Math.max(daysToFetch, 7) // At least 7 days
+    }
+
+    console.log(`[getAppStoreMetrics] Fetching ${daysToFetch} days of data (startDate: ${startDate || 'All Time'})`)
+
+    // Sales reports have ~1-2 day delay, start from day 2
+    for (let i = 2; i <= daysToFetch + 2; i++) {
+      const date = new Date()
+      date.setDate(date.getDate() - i)
+      const dateStr = date.toISOString().split('T')[0]
+
+      // Apply date filters
+      if (startDate && dateStr < startDate) continue
+      if (endDate && dateStr > endDate) continue
+
+      dates.push(dateStr)
+    }
+
+    console.log(`[getAppStoreMetrics] Fetching ${dates.length} days of data`)
+
+    // Collect daily metrics
+    const dailyMetrics: Map<string, { downloads: number; revenue: number; currency: string }> = new Map()
+
+    if (config.vendorNumber && dates.length > 0) {
+      // Fetch in batches of 7
+      for (let batch = 0; batch < dates.length; batch += 7) {
+        const batchDates = dates.slice(batch, batch + 7)
+        const salesPromises = batchDates.map(reportDate =>
+          client.getSalesReports(config.vendorNumber!, reportDate)
+            .then(reports => ({ reportDate, reports }))
+            .catch(() => ({ reportDate, reports: [] })) // Handle missing reports gracefully
+        )
+
+        const batchResults = await Promise.all(salesPromises)
+
+        for (const { reportDate, reports } of batchResults) {
+          for (const report of reports) {
+            // Only include data for the selected app
+            if (report.appId === app.id) {
+              const existing = dailyMetrics.get(reportDate) || { downloads: 0, revenue: 0, currency: 'USD' }
+              existing.downloads += report.units
+              existing.revenue += report.proceeds
+              if (report.proceedsCurrency) {
+                existing.currency = report.proceedsCurrency
+              }
+              dailyMetrics.set(reportDate, existing)
+            }
+          }
+        }
+      }
+    }
+
+    const now = new Date().toISOString()
+
+    // Build metrics array
+    const metrics: AppStoreMetrics[] = []
+    for (const [period, data] of dailyMetrics) {
+      metrics.push({
+        id: `${integrationId}_${app.id}_${period}`,
+        orgId: orgContext.organization.id,
+        integrationId,
+        appId: app.id,
+        appName: app.name,
+        platform: 'ios',
+        period,
+        downloads: data.downloads,
+        revenue: data.revenue,
+        currency: data.currency,
+        activeDevices: 0,
+        crashFreeRate: 99.5,
+        averageRating: avgRating,
+        totalRatings: reviews.length,
+        fetchedAt: now,
+      })
+    }
+
+    // Sort by period descending
+    metrics.sort((a, b) => b.period.localeCompare(a.period))
+
+    console.log(`[getAppStoreMetrics] Returning ${metrics.length} metrics records`)
 
     return { success: true, data: metrics }
   } catch (error) {
     console.error('Get app store metrics error:', error)
+    const message = error instanceof Error ? error.message : 'Failed to fetch metrics'
     return {
       success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch metrics' },
+      error: { code: 'INTERNAL_ERROR', message },
     }
   }
 }
@@ -670,13 +905,14 @@ export async function syncIntegration(
 
 /**
  * Sync data from App Store Connect.
+ * Only syncs reviews to Firestore. Metrics are fetched directly from API.
  */
 async function syncAppStoreConnect(
   db: FirebaseFirestore.Firestore,
   integrationId: string,
   orgId: string,
   credentials: IntegrationCredentials,
-  config: { appStoreAppId?: string }
+  config: { appStoreAppId?: string; vendorNumber?: string }
 ): Promise<void> {
   // Validate credentials
   if (!credentials.issuerId || !credentials.keyId || !credentials.privateKey) {
@@ -703,66 +939,54 @@ async function syncAppStoreConnect(
     ? apps.find((a) => a.id === targetAppId) || apps[0]
     : apps[0]
 
+  console.log(`[Sync] App selected: ${app.name} (ID: ${app.id})`)
+
   // Fetch reviews
   const reviews = await client.getCustomerReviews(app.id, 50)
-
-  // Calculate metrics from reviews
-  const avgRating = calculateAverageRating(reviews)
-  const ratingCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-  for (const review of reviews) {
-    if (review.rating >= 1 && review.rating <= 5) {
-      ratingCounts[review.rating]++
-    }
-  }
+  console.log(`[Sync] Fetched ${reviews.length} reviews`)
 
   const now = new Date().toISOString()
-  const today = new Date().toISOString().split('T')[0]
 
-  // Store metrics
-  const metricsRef = db.collection(COLLECTIONS.APP_STORE_METRICS).doc()
-  await metricsRef.set({
-    id: metricsRef.id,
-    orgId,
-    integrationId,
-    appId: app.id,
-    appName: app.name,
-    platform: 'ios' as const,
-    period: today,
-    downloads: 0, // Sales reports API needed for this
-    revenue: 0,
-    currency: 'USD',
-    activeDevices: 0,
-    crashFreeRate: 99.5,
-    averageRating: avgRating,
-    totalRatings: reviews.length,
-    fetchedAt: now,
-  })
+  // Get existing reviews to avoid duplicates
+  const existingReviews = await db
+    .collection(COLLECTIONS.APP_REVIEWS)
+    .where('integrationId', '==', integrationId)
+    .where('appId', '==', app.id)
+    .get()
 
-  // Store reviews
-  const batch = db.batch()
+  const existingExternalIds = new Set(
+    existingReviews.docs.map((doc) => doc.data().externalId)
+  )
 
-  for (const review of reviews) {
-    const reviewRef = db.collection(COLLECTIONS.APP_REVIEWS).doc()
-    batch.set(reviewRef, {
-      id: reviewRef.id,
-      orgId,
-      integrationId,
-      appId: app.id,
-      platform: 'ios' as const,
-      externalId: review.id,
-      rating: review.rating,
-      title: review.title || null,
-      body: review.body,
-      authorName: review.reviewerNickname,
-      appVersion: null,
-      reviewDate: review.createdDate,
-      response: null,
-      respondedAt: null,
-      fetchedAt: now,
-    })
+  // Only add reviews that don't already exist
+  const newReviews = reviews.filter((review) => !existingExternalIds.has(review.id))
+
+  if (newReviews.length > 0) {
+    const batch = db.batch()
+
+    for (const review of newReviews) {
+      const reviewRef = db.collection(COLLECTIONS.APP_REVIEWS).doc()
+      batch.set(reviewRef, {
+        id: reviewRef.id,
+        orgId,
+        integrationId,
+        appId: app.id,
+        platform: 'ios' as const,
+        externalId: review.id,
+        rating: review.rating,
+        title: review.title || null,
+        body: review.body,
+        authorName: review.reviewerNickname,
+        appVersion: null,
+        reviewDate: review.createdDate,
+        response: null,
+        respondedAt: null,
+        fetchedAt: now,
+      })
+    }
+
+    await batch.commit()
   }
-
-  await batch.commit()
 }
 
 // ========================================

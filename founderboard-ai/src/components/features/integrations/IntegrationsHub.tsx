@@ -34,6 +34,7 @@ import {
   syncIntegration,
 } from '@/lib/actions/integrations'
 import { ConnectIntegrationModal } from './ConnectIntegrationModal'
+import { EditIntegrationModal } from './EditIntegrationModal'
 import type { Integration, IntegrationType } from '@/types/integrations'
 import {
   INTEGRATION_TYPES,
@@ -183,9 +184,13 @@ export function IntegrationsHub() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Modal
+  // Connect Modal
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedType, setSelectedType] = useState<IntegrationType | null>(null)
+
+  // Edit Modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null)
 
   /**
    * Fetch integrations.
@@ -243,6 +248,14 @@ export function IntegrationsHub() {
   const handleConnectClick = (type: IntegrationType) => {
     setSelectedType(type)
     setIsModalOpen(true)
+  }
+
+  /**
+   * Handle settings/edit click.
+   */
+  const handleSettingsClick = (integration: Integration) => {
+    setSelectedIntegration(integration)
+    setIsEditModalOpen(true)
   }
 
   /**
@@ -311,9 +324,7 @@ export function IntegrationsHub() {
                 integration={integration}
                 onSync={() => handleSync(integration.id)}
                 onDisconnect={() => handleDisconnect(integration)}
-                onSettings={() => {
-                  // Could open a settings modal
-                }}
+                onSettings={() => handleSettingsClick(integration)}
               />
             ))}
           </div>
@@ -372,6 +383,16 @@ export function IntegrationsHub() {
           open={isModalOpen}
           onOpenChange={setIsModalOpen}
           type={selectedType}
+          onSuccess={handleSuccess}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {selectedIntegration && (
+        <EditIntegrationModal
+          open={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          integration={selectedIntegration}
           onSuccess={handleSuccess}
         />
       )}

@@ -7,7 +7,7 @@
  * Combines data from App Store Connect and Google Play.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -25,6 +25,26 @@ import type { Integration, AppStoreMetrics, AppReview } from '@/types/integratio
 import Link from 'next/link'
 
 type Platform = 'all' | 'ios' | 'android'
+type DateRange = '7d' | '30d' | '90d' | 'all'
+
+const DATE_RANGE_LABELS: Record<DateRange, string> = {
+  '7d': '7 Days',
+  '30d': '30 Days',
+  '90d': '90 Days',
+  'all': 'All Time',
+}
+
+/**
+ * Calculate start date based on range selection.
+ */
+function getStartDate(range: DateRange): string | undefined {
+  if (range === 'all') return undefined
+
+  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  return date.toISOString().split('T')[0]
+}
 
 export function AppAnalyticsDashboard() {
   // State
@@ -35,16 +55,12 @@ export function AppAnalyticsDashboard() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [platform, setPlatform] = useState<Platform>('all')
-
-  // Fetch data on mount
-  useEffect(() => {
-    loadData()
-  }, [])
+  const [dateRange, setDateRange] = useState<DateRange>('7d')
 
   /**
    * Load integrations and their data.
    */
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
 
@@ -62,14 +78,22 @@ export function AppAnalyticsDashboard() {
       )
       setIntegrations(appStoreIntegrations)
 
+      // Calculate date range
+      const startDate = getStartDate(dateRange)
+      const endDate = new Date().toISOString().split('T')[0]
+
       // Fetch metrics and reviews for each integration
       const allMetrics: AppStoreMetrics[] = []
       const allReviews: AppReview[] = []
 
       for (const integration of appStoreIntegrations) {
         if (integration.status === 'active') {
-          // Get metrics
-          const metricsResult = await getAppStoreMetrics(integration.id)
+          // Get metrics with date range filter
+          const metricsResult = await getAppStoreMetrics(
+            integration.id,
+            startDate,
+            endDate
+          )
           if (metricsResult.success) {
             allMetrics.push(...metricsResult.data)
           }
@@ -90,7 +114,12 @@ export function AppAnalyticsDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [dateRange])
+
+  // Fetch data on mount and when dateRange changes
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   /**
    * Trigger sync for all app store integrations.
@@ -181,7 +210,18 @@ export function AppAnalyticsDashboard() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Date range filter */}
+          <Tabs value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
+            <TabsList>
+              {(Object.keys(DATE_RANGE_LABELS) as DateRange[]).map((range) => (
+                <TabsTrigger key={range} value={range}>
+                  {DATE_RANGE_LABELS[range]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
           {/* Platform filter (only show if both platforms connected) */}
           {hasIOS && hasAndroid && (
             <Tabs value={platform} onValueChange={(v) => setPlatform(v as Platform)}>

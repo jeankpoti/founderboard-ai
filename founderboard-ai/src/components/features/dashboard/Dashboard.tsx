@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { KPICard } from './KPICard'
 import { EditMetricModal } from './EditMetricModal'
-import { MRRChart } from './MRRChart'
+import { MetricTrendChart } from './MetricTrendChart'
 import { getMetrics } from '@/lib/actions/metrics'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Metric, MetricType } from '@/types/metrics'
@@ -87,8 +87,8 @@ export function Dashboard({ role }: DashboardProps) {
         })}
       </div>
 
-      {/* MRR Chart */}
-      <MRRChart />
+      {/* Metrics Trend Chart */}
+      <MetricTrendChart />
 
       {/* Edit Modal */}
       <EditMetricModal

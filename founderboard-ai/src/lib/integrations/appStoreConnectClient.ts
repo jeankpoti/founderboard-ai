@@ -6,6 +6,7 @@
  */
 
 import jwt from 'jsonwebtoken'
+import { gunzipSync } from 'zlib'
 
 const API_BASE_URL = 'https://api.appstoreconnect.apple.com/v1'
 
@@ -221,22 +222,192 @@ export class AppStoreConnectClient {
   }
 
   /**
+   * Make a raw authenticated API request (for non-JSON responses like gzipped data).
+   */
+  private async requestRaw(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<Response> {
+    const token = this.getToken()
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...options.headers,
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(
+        `App Store Connect API error: ${response.status} ${response.statusText} - ${errorText}`
+      )
+    }
+
+    return response
+  }
+
+  /**
    * Get sales and trends reports.
-   * Note: This endpoint returns gzipped TSV data, not JSON.
-   * For simplicity, we'll use the Analytics Reports API instead.
+   * Returns download units and revenue for each app.
+   * Note: Reports are typically available with a 1-day delay.
    */
   async getSalesReports(
     vendorNumber: string,
     reportDate: string
   ): Promise<AppStoreSalesReport[]> {
-    // Sales reports require different handling (gzipped TSV)
-    // For now, return empty array - full implementation would need:
-    // 1. Call /v1/salesReports with query params
-    // 2. Decompress gzip response
-    // 3. Parse TSV data
+    console.log(`[SalesReports] Fetching for vendor=${vendorNumber}, date=${reportDate}`)
 
-    console.log('Sales reports not fully implemented yet', { vendorNumber, reportDate })
-    return []
+    try {
+      // Build query params for daily summary sales report
+      const params = new URLSearchParams({
+        'filter[frequency]': 'DAILY',
+        'filter[reportSubType]': 'SUMMARY',
+        'filter[reportType]': 'SALES',
+        'filter[vendorNumber]': vendorNumber,
+        'filter[reportDate]': reportDate,
+      })
+
+      const endpoint = `/salesReports?${params.toString()}`
+      console.log(`[SalesReports] Calling endpoint: ${endpoint}`)
+
+      const response = await this.requestRaw(endpoint)
+      console.log(`[SalesReports] Response status: ${response.status}`)
+
+      // Response is gzipped TSV data
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      console.log(`[SalesReports] Response buffer size: ${buffer.length} bytes`)
+
+      // Decompress gzip
+      let tsvData: string
+      try {
+        const decompressed = gunzipSync(buffer)
+        tsvData = decompressed.toString('utf-8')
+        console.log(`[SalesReports] Decompressed gzip data, size: ${tsvData.length} chars`)
+      } catch {
+        // If not gzipped, try as plain text
+        tsvData = buffer.toString('utf-8')
+        console.log(`[SalesReports] Using plain text data, size: ${tsvData.length} chars`)
+      }
+
+      // Log first 500 chars of TSV data for debugging
+      console.log(`[SalesReports] TSV data preview:\n${tsvData.substring(0, 500)}`)
+
+      // Parse TSV data
+      const reports = this.parseSalesReportTSV(tsvData)
+      console.log(`[SalesReports] Parsed ${reports.length} reports:`, JSON.stringify(reports, null, 2))
+
+      return reports
+    } catch (error) {
+      // Sales reports may not be available (404) for dates without data
+      // or for accounts without sales
+      console.error(`[SalesReports] ERROR for date=${reportDate}:`, error)
+      return []
+    }
+  }
+
+  /**
+   * Parse App Store Connect Sales Report TSV data.
+   * TSV columns (vary by report type but typically include):
+   * Provider, Provider Country, SKU, Developer, Title, Version, Product Type Identifier,
+   * Units, Developer Proceeds, Begin Date, End Date, Customer Currency, Country Code,
+   * Currency of Proceeds, Apple Identifier, ...
+   */
+  private parseSalesReportTSV(tsvData: string): AppStoreSalesReport[] {
+    const lines = tsvData.trim().split('\n')
+    console.log(`[SalesReports:Parse] Total lines: ${lines.length}`)
+
+    if (lines.length < 2) {
+      console.log('[SalesReports:Parse] Not enough lines (need at least 2)')
+      return []
+    }
+
+    // First line is headers
+    const headers = lines[0].split('\t').map((h) => h.trim())
+    console.log(`[SalesReports:Parse] Headers (${headers.length}):`, headers)
+
+    // Find column indices
+    const appleIdIndex = headers.findIndex((h) => h === 'Apple Identifier')
+    const unitsIndex = headers.findIndex((h) => h === 'Units')
+    const proceedsIndex = headers.findIndex((h) => h === 'Developer Proceeds')
+    const currencyIndex = headers.findIndex((h) => h === 'Currency of Proceeds')
+    const productTypeIndex = headers.findIndex((h) => h === 'Product Type Identifier')
+    const titleIndex = headers.findIndex((h) => h === 'Title')
+    const skuIndex = headers.findIndex((h) => h === 'SKU')
+
+    console.log(`[SalesReports:Parse] Column indices - AppleID: ${appleIdIndex}, Units: ${unitsIndex}, Proceeds: ${proceedsIndex}, Currency: ${currencyIndex}, ProductType: ${productTypeIndex}, Title: ${titleIndex}, SKU: ${skuIndex}`)
+
+    if (unitsIndex === -1) {
+      console.warn('[SalesReports:Parse] Missing "Units" column!')
+      return []
+    }
+
+    // Aggregate by app ID
+    const appData: Record<string, { units: number; proceeds: number; currency: string }> = {}
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split('\t')
+      const appId = appleIdIndex !== -1 ? values[appleIdIndex]?.trim() : 'unknown'
+      const units = parseInt(values[unitsIndex]?.trim() || '0', 10) || 0
+      const proceeds = parseFloat(values[proceedsIndex]?.trim() || '0') || 0
+      const currency = currencyIndex !== -1 ? values[currencyIndex]?.trim() || 'USD' : 'USD'
+      const productType = productTypeIndex !== -1 ? values[productTypeIndex]?.trim() : 'unknown'
+      const title = titleIndex !== -1 ? values[titleIndex]?.trim() : 'unknown'
+      const sku = skuIndex !== -1 ? values[skuIndex]?.trim() : 'unknown'
+
+      // Log first few rows for debugging (include product type and title)
+      if (i <= 5) {
+        console.log(`[SalesReports:Parse] Row ${i}: appId=${appId}, title="${title}", sku=${sku}, productType=${productType}, units=${units}, proceeds=${proceeds}`)
+      }
+
+      if (!appData[appId]) {
+        appData[appId] = { units: 0, proceeds: 0, currency }
+      }
+      appData[appId].units += units
+      appData[appId].proceeds += proceeds
+    }
+
+    console.log(`[SalesReports:Parse] Aggregated data:`, appData)
+
+    return Object.entries(appData).map(([appId, data]) => ({
+      appId,
+      units: data.units,
+      proceeds: data.proceeds,
+      proceedsCurrency: data.currency,
+    }))
+  }
+
+  /**
+   * Get the vendor number for this account.
+   * The vendor number is required for sales reports.
+   */
+  async getVendorNumber(): Promise<string | null> {
+    interface FinanceReportsResponse {
+      data: Array<{
+        id: string
+        attributes: {
+          vendorNumber: string
+        }
+      }>
+    }
+
+    try {
+      // Try to get vendor info from finance reports endpoint
+      const response = await this.request<FinanceReportsResponse>(
+        '/financeReports?filter[reportType]=FINANCIAL&limit=1'
+      )
+      if (response.data && response.data.length > 0) {
+        return response.data[0].attributes.vendorNumber
+      }
+    } catch {
+      // Finance reports may not be accessible, try alternative
+    }
+
+    // Alternative: Get from sales reports with a known date (will fail but error may contain vendor info)
+    // For now, return null - vendor number should be stored in integration config
+    return null
   }
 }
 

@@ -20,10 +20,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ExternalLink, AlertTriangle } from 'lucide-react'
-import { connectIntegration } from '@/lib/actions/integrations'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ExternalLink, AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
+import { connectIntegration, fetchAppStoreApps } from '@/lib/actions/integrations'
 import type { IntegrationType, ConnectIntegrationInput } from '@/types/integrations'
 import { INTEGRATION_META } from '@/types/integrations'
+import type { AppStoreApp } from '@/lib/integrations/appStoreConnectClient'
 
 interface ConnectIntegrationModalProps {
   open: boolean
@@ -49,6 +57,13 @@ export function ConnectIntegrationModal({
   const [privateKey, setPrivateKey] = useState('')
   const [serviceAccountJson, setServiceAccountJson] = useState('')
   const [appId, setAppId] = useState('')
+  const [vendorNumber, setVendorNumber] = useState('')
+
+  // App Store Connect apps state
+  const [apps, setApps] = useState<AppStoreApp[]>([])
+  const [isLoadingApps, setIsLoadingApps] = useState(false)
+  const [appsLoaded, setAppsLoaded] = useState(false)
+  const [appsError, setAppsError] = useState<string | null>(null)
 
   // UI state
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -65,9 +80,52 @@ export function ConnectIntegrationModal({
       setPrivateKey('')
       setServiceAccountJson('')
       setAppId('')
+      setVendorNumber('')
+      setApps([])
+      setAppsLoaded(false)
+      setAppsError(null)
       setError(null)
     }
   }, [open, meta.name])
+
+  /**
+   * Load apps from App Store Connect using provided credentials.
+   */
+  const handleLoadApps = async () => {
+    if (!issuerId || !keyId || !privateKey) {
+      setAppsError('Please fill in all credential fields first')
+      return
+    }
+
+    setIsLoadingApps(true)
+    setAppsError(null)
+
+    try {
+      const result = await fetchAppStoreApps({
+        issuerId,
+        keyId,
+        privateKey,
+      })
+
+      if (!result.success) {
+        setAppsError(result.error.message)
+        return
+      }
+
+      setApps(result.data)
+      setAppsLoaded(true)
+
+      // Auto-select first app if only one
+      if (result.data.length === 1) {
+        setAppId(result.data[0].id)
+      }
+    } catch (err) {
+      console.error('Load apps error:', err)
+      setAppsError('Failed to load apps. Please check your credentials.')
+    } finally {
+      setIsLoadingApps(false)
+    }
+  }
 
   /**
    * Handle form submission.
@@ -89,6 +147,7 @@ export function ConnectIntegrationModal({
         serviceAccountJson: serviceAccountJson || undefined,
         config: {
           appStoreAppId: type === 'app_store_connect' ? appId : undefined,
+          vendorNumber: type === 'app_store_connect' ? vendorNumber : undefined,
           playPackageName: type === 'google_play' ? appId : undefined,
         },
       }
@@ -171,16 +230,76 @@ export function ConnectIntegrationModal({
               </p>
             </div>
 
+            {/* App Selector */}
             <div className="space-y-2">
-              <Label htmlFor="appId">App ID (optional)</Label>
+              <div className="flex items-center justify-between">
+                <Label>Select App</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLoadApps}
+                  disabled={isLoadingApps || !issuerId || !keyId || !privateKey}
+                >
+                  {isLoadingApps ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Loading...
+                    </>
+                  ) : appsLoaded ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Refresh
+                    </>
+                  ) : (
+                    'Load Apps'
+                  )}
+                </Button>
+              </div>
+
+              {appsError && (
+                <p className="text-xs text-destructive">{appsError}</p>
+              )}
+
+              {!appsLoaded ? (
+                <p className="text-xs text-muted-foreground">
+                  Enter your credentials above, then click "Load Apps" to see your available apps.
+                </p>
+              ) : apps.length === 0 ? (
+                <p className="text-xs text-amber-600">
+                  No apps found in your App Store Connect account.
+                </p>
+              ) : (
+                <Select value={appId} onValueChange={setAppId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose an app..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {apps.map((app) => (
+                      <SelectItem key={app.id} value={app.id}>
+                        <div className="flex flex-col">
+                          <span>{app.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {app.bundleId}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vendorNumber">Vendor Number (for downloads/revenue)</Label>
               <Input
-                id="appId"
-                value={appId}
-                onChange={(e) => setAppId(e.target.value)}
-                placeholder="123456789"
+                id="vendorNumber"
+                value={vendorNumber}
+                onChange={(e) => setVendorNumber(e.target.value)}
+                placeholder="12345678"
               />
               <p className="text-xs text-muted-foreground">
-                Your app's Apple ID number (found in App Store Connect)
+                Found in App Store Connect → Agreements, Tax, and Banking. Required to fetch download and revenue data.
               </p>
             </div>
           </>
