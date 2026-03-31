@@ -3,15 +3,15 @@
 /**
  * EventsList Component
  *
- * Displays a list of Mixpanel events.
+ * Displays a list of PostHog events.
  */
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import type { MixpanelEvent } from '@/types/integrations'
+import type { PostHogEvent } from '@/types/integrations'
 
 interface EventsListProps {
-  events: MixpanelEvent[]
+  events: PostHogEvent[]
   compact?: boolean
 }
 
@@ -24,7 +24,7 @@ export function EventsList({ events, compact = false }: EventsListProps) {
         <div className="text-4xl mb-3">{"[x]"}</div>
         <p className="text-muted-foreground">No events yet</p>
         <p className="text-sm text-muted-foreground">
-          Events will appear here once synced from Mixpanel.
+          Events will appear here once loaded from PostHog.
         </p>
       </div>
     )

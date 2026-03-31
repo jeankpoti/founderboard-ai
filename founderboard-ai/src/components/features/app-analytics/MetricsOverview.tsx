@@ -10,6 +10,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import type { AppStoreMetrics } from '@/types/integrations'
 import {
   getTotalDownloads,
+  getTotalNewDownloads,
+  getTotalRedownloads,
+  getTotalUpdates,
   getTotalRevenue,
   getAverageRating,
   formatRevenue,
@@ -20,11 +23,25 @@ interface MetricsOverviewProps {
 }
 
 export function MetricsOverview({ metrics }: MetricsOverviewProps) {
+  const latestMetricsByApp = Object.values(
+    metrics.reduce<Record<string, AppStoreMetrics>>((acc, metric) => {
+      const key = `${metric.integrationId}:${metric.appId}`
+      const current = acc[key]
+      if (!current || metric.period > current.period) {
+        acc[key] = metric
+      }
+      return acc
+    }, {})
+  )
+
   // Calculate aggregated values
   const totalDownloads = getTotalDownloads(metrics)
+  const totalNewDownloads = getTotalNewDownloads(metrics)
+  const totalRedownloads = getTotalRedownloads(metrics)
+  const totalUpdates = getTotalUpdates(metrics)
   const totalRevenue = getTotalRevenue(metrics)
   const averageRating = getAverageRating(metrics)
-  const totalActiveDevices = metrics.reduce((sum, m) => sum + m.activeDevices, 0)
+  const totalActiveDevices = latestMetricsByApp.reduce((sum, m) => sum + m.activeDevices, 0)
 
   // Format large numbers
   function formatNumber(num: number): string {
@@ -74,6 +91,22 @@ export function MetricsOverview({ metrics }: MetricsOverviewProps) {
     {
       title: 'Total Downloads',
       value: formatNumber(totalDownloads),
+      extra: (
+        <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+          <div className="flex justify-between">
+            <span>New:</span>
+            <span className="font-medium">{formatNumber(totalNewDownloads)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Re-downloads:</span>
+            <span className="font-medium">{formatNumber(totalRedownloads)}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground/70">
+            <span>Updates:</span>
+            <span className="font-medium">{formatNumber(totalUpdates)}</span>
+          </div>
+        </div>
+      ),
       icon: (
         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path

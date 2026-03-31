@@ -6,10 +6,10 @@
  * Displays a conversion funnel visualization.
  */
 
-import type { MixpanelFunnel } from '@/types/integrations'
+import type { PostHogFunnel } from '@/types/integrations'
 
 interface FunnelChartProps {
-  funnel: MixpanelFunnel
+  funnel: PostHogFunnel
 }
 
 export function FunnelChart({ funnel }: FunnelChartProps) {

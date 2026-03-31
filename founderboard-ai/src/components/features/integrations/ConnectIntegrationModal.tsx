@@ -50,6 +50,7 @@ export function ConnectIntegrationModal({
 
   // Form state
   const [name, setName] = useState('')
+  const [accessToken, setAccessToken] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [apiSecret, setApiSecret] = useState('')
   const [issuerId, setIssuerId] = useState('')
@@ -58,6 +59,11 @@ export function ConnectIntegrationModal({
   const [serviceAccountJson, setServiceAccountJson] = useState('')
   const [appId, setAppId] = useState('')
   const [vendorNumber, setVendorNumber] = useState('')
+  const [githubRepo, setGithubRepo] = useState('')
+  const [slackChannel, setSlackChannel] = useState('')
+  const [googleAnalyticsPropertyId, setGoogleAnalyticsPropertyId] = useState('')
+  const [posthogProjectId, setPosthogProjectId] = useState('')
+  const [posthogHost, setPosthogHost] = useState('')
 
   // App Store Connect apps state
   const [apps, setApps] = useState<AppStoreApp[]>([])
@@ -73,6 +79,7 @@ export function ConnectIntegrationModal({
   useEffect(() => {
     if (open) {
       setName(meta.name)
+      setAccessToken('')
       setApiKey('')
       setApiSecret('')
       setIssuerId('')
@@ -81,6 +88,11 @@ export function ConnectIntegrationModal({
       setServiceAccountJson('')
       setAppId('')
       setVendorNumber('')
+      setGithubRepo('')
+      setSlackChannel('')
+      setGoogleAnalyticsPropertyId('')
+      setPosthogProjectId('')
+      setPosthogHost('')
       setApps([])
       setAppsLoaded(false)
       setAppsError(null)
@@ -139,6 +151,7 @@ export function ConnectIntegrationModal({
       const input: ConnectIntegrationInput = {
         type,
         name,
+        accessToken: accessToken || undefined,
         apiKey: apiKey || undefined,
         apiSecret: apiSecret || undefined,
         issuerId: issuerId || undefined,
@@ -146,9 +159,15 @@ export function ConnectIntegrationModal({
         privateKey: privateKey || undefined,
         serviceAccountJson: serviceAccountJson || undefined,
         config: {
+          slackChannel: type === 'slack' ? slackChannel || undefined : undefined,
+          githubRepo: type === 'github' ? githubRepo || undefined : undefined,
           appStoreAppId: type === 'app_store_connect' ? appId : undefined,
           vendorNumber: type === 'app_store_connect' ? vendorNumber : undefined,
           playPackageName: type === 'google_play' ? appId : undefined,
+          googleAnalyticsPropertyId:
+            type === 'google_analytics' ? googleAnalyticsPropertyId || undefined : undefined,
+          posthogProjectId: type === 'posthog' ? posthogProjectId || undefined : undefined,
+          posthogHost: type === 'posthog' ? posthogHost || undefined : undefined,
         },
       }
 
@@ -183,7 +202,7 @@ export function ConnectIntegrationModal({
                 <div>
                   <p className="font-medium text-amber-800">Apple Developer Account Required</p>
                   <p className="text-amber-700 mt-1">
-                    You'll need to create an API key in App Store Connect under Users and Access.
+                    You&apos;ll need to create an API key in App Store Connect under Users and Access.
                   </p>
                 </div>
               </div>
@@ -263,7 +282,7 @@ export function ConnectIntegrationModal({
 
               {!appsLoaded ? (
                 <p className="text-xs text-muted-foreground">
-                  Enter your credentials above, then click "Load Apps" to see your available apps.
+                  Enter your credentials above, then click &quot;Load Apps&quot; to see your available apps.
                 </p>
               ) : apps.length === 0 ? (
                 <p className="text-xs text-amber-600">
@@ -349,22 +368,35 @@ export function ConnectIntegrationModal({
           </>
         )
 
-      // API Key auth (Stripe, Mixpanel, Intercom)
+      // API Key auth (Stripe, PostHog, Intercom)
       case 'stripe':
-      case 'mixpanel':
+      case 'posthog':
       case 'intercom':
         return (
           <>
             <div className="space-y-2">
-              <Label htmlFor="apiKey">API Key</Label>
+              <Label htmlFor="apiKey">
+                {type === 'posthog' ? 'Personal API Key' : 'API Key'}
+              </Label>
               <Input
                 id="apiKey"
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder={type === 'stripe' ? 'sk_live_...' : 'Enter your API key'}
+                placeholder={
+                  type === 'stripe'
+                    ? 'sk_live_...'
+                    : type === 'posthog'
+                      ? 'Enter your personal API key'
+                      : 'Enter your API key'
+                }
                 required
               />
+              {type === 'posthog' && (
+                <p className="text-xs text-muted-foreground">
+                  Use a PostHog personal API key with the `query:read` scope for the target project.
+                </p>
+              )}
             </div>
 
             {type === 'stripe' && (
@@ -378,6 +410,34 @@ export function ConnectIntegrationModal({
                   placeholder="whsec_..."
                 />
               </div>
+            )}
+
+            {type === 'posthog' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="posthogProjectId">Project ID</Label>
+                  <Input
+                    id="posthogProjectId"
+                    value={posthogProjectId}
+                    onChange={(e) => setPosthogProjectId(e.target.value)}
+                    placeholder="12345"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="posthogHost">PostHog Host</Label>
+                  <Input
+                    id="posthogHost"
+                    value={posthogHost}
+                    onChange={(e) => setPosthogHost(e.target.value)}
+                    placeholder="https://us.posthog.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank to use the default US cloud host. Use your own domain for EU or self-hosted PostHog.
+                  </p>
+                </div>
+              </>
             )}
           </>
         )
@@ -404,15 +464,48 @@ export function ConnectIntegrationModal({
               For now, enter credentials manually if available.
             </p>
             <div className="mt-4 space-y-2 text-left">
-              <Label htmlFor="apiKey">Access Token (if available)</Label>
+              <Label htmlFor="accessToken">Access Token</Label>
               <Input
-                id="apiKey"
+                id="accessToken"
                 type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
                 placeholder="Enter access token"
               />
             </div>
+            {type === 'github' && (
+              <div className="mt-4 space-y-2 text-left">
+                <Label htmlFor="githubRepo">Repository</Label>
+                <Input
+                  id="githubRepo"
+                  value={githubRepo}
+                  onChange={(e) => setGithubRepo(e.target.value)}
+                  placeholder="owner/repository (optional)"
+                />
+              </div>
+            )}
+            {type === 'google_analytics' && (
+              <div className="mt-4 space-y-2 text-left">
+                <Label htmlFor="googleAnalyticsPropertyId">GA4 Property ID</Label>
+                <Input
+                  id="googleAnalyticsPropertyId"
+                  value={googleAnalyticsPropertyId}
+                  onChange={(e) => setGoogleAnalyticsPropertyId(e.target.value)}
+                  placeholder="123456789"
+                />
+              </div>
+            )}
+            {type === 'slack' && (
+              <div className="mt-4 space-y-2 text-left">
+                <Label htmlFor="slackChannel">Default Channel</Label>
+                <Input
+                  id="slackChannel"
+                  value={slackChannel}
+                  onChange={(e) => setSlackChannel(e.target.value)}
+                  placeholder="#founderboard"
+                />
+              </div>
+            )}
           </div>
         )
 

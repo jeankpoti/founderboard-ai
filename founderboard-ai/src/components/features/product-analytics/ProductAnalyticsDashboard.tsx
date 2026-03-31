@@ -3,7 +3,7 @@
 /**
  * ProductAnalyticsDashboard Component
  *
- * Main dashboard showing Mixpanel product analytics.
+ * Main dashboard showing PostHog product analytics.
  */
 
 import { useState, useEffect } from 'react'
@@ -15,16 +15,16 @@ import { EventsList } from './EventsList'
 import { FunnelChart } from './FunnelChart'
 import {
   getIntegrations,
-  getMixpanelEvents,
-  getMixpanelFunnels,
-  getMixpanelRetention,
+  getPostHogEvents,
+  getPostHogFunnels,
+  getPostHogRetention,
   syncIntegration,
 } from '@/lib/actions/integrations'
 import type {
   Integration,
-  MixpanelEvent,
-  MixpanelFunnel,
-  MixpanelRetention,
+  PostHogEvent,
+  PostHogFunnel,
+  PostHogRetention,
 } from '@/types/integrations'
 import Link from 'next/link'
 
@@ -32,9 +32,9 @@ type TabType = 'overview' | 'events' | 'funnels' | 'retention'
 
 export function ProductAnalyticsDashboard() {
   const [integration, setIntegration] = useState<Integration | null>(null)
-  const [events, setEvents] = useState<MixpanelEvent[]>([])
-  const [funnels, setFunnels] = useState<MixpanelFunnel[]>([])
-  const [retention, setRetention] = useState<MixpanelRetention[]>([])
+  const [events, setEvents] = useState<PostHogEvent[]>([])
+  const [funnels, setFunnels] = useState<PostHogFunnel[]>([])
+  const [retention, setRetention] = useState<PostHogRetention[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,14 +55,14 @@ export function ProductAnalyticsDashboard() {
         return
       }
 
-      const mixpanelInt = intResult.data.find((i) => i.type === 'mixpanel')
-      setIntegration(mixpanelInt || null)
+      const posthogInt = intResult.data.find((i) => i.type === 'posthog')
+      setIntegration(posthogInt || null)
 
-      if (mixpanelInt && mixpanelInt.status === 'active') {
+      if (posthogInt && posthogInt.status === 'active') {
         const [eventsResult, funnelsResult, retentionResult] = await Promise.all([
-          getMixpanelEvents(mixpanelInt.id, 50),
-          getMixpanelFunnels(mixpanelInt.id),
-          getMixpanelRetention(mixpanelInt.id),
+          getPostHogEvents(posthogInt.id, 50),
+          getPostHogFunnels(posthogInt.id),
+          getPostHogRetention(posthogInt.id),
         ])
 
         if (eventsResult.success) setEvents(eventsResult.data)
@@ -86,7 +86,7 @@ export function ProductAnalyticsDashboard() {
       await loadData()
     } catch (err) {
       console.error('Error syncing:', err)
-      setError('Failed to sync Mixpanel data.')
+      setError('Failed to refresh PostHog data.')
     } finally {
       setIsSyncing(false)
     }
@@ -106,12 +106,12 @@ export function ProductAnalyticsDashboard() {
         <CardContent className="py-12">
           <div className="text-center space-y-4">
             <div className="text-5xl">{"[x]"}</div>
-            <h3 className="text-lg font-semibold">Connect Mixpanel</h3>
+            <h3 className="text-lg font-semibold">Connect PostHog</h3>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Connect your Mixpanel account to see user events, conversion funnels, and retention data.
+              Connect your PostHog account to see user events, funnels, and retention data.
             </p>
             <Button asChild>
-              <Link href="/integrations">Connect Mixpanel</Link>
+              <Link href="/integrations">Connect PostHog</Link>
             </Button>
           </div>
         </CardContent>
@@ -134,7 +134,7 @@ export function ProductAnalyticsDashboard() {
           <span className="text-2xl">{"[x]"}</span>
           <div>
             <p className="font-medium">{integration.name}</p>
-            <p className="text-xs text-muted-foreground">Mixpanel</p>
+            <p className="text-xs text-muted-foreground">PostHog</p>
           </div>
           <span
             className={`text-xs px-2 py-1 rounded-full ${
@@ -151,14 +151,14 @@ export function ProductAnalyticsDashboard() {
           {isSyncing ? (
             <>
               <Spinner className="h-4 w-4 mr-2" />
-              Syncing...
+              Refreshing...
             </>
           ) : (
             <>
               <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Sync Now
+              Refresh Data
             </>
           )}
         </Button>

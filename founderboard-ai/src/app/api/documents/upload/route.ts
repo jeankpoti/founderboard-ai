@@ -18,7 +18,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getStorage } from 'firebase-admin/storage'
-import { adminDb, getFirebaseAdminApp } from '@/lib/firebase/admin'
+import { adminDb, getFirebaseAdminApp, getAdminStorageBucketName } from '@/lib/firebase/admin'
 import { COLLECTIONS } from '@/lib/firebase/collections'
 import { verifySession } from '@/lib/auth/session'
 import { getOrgContext } from '@/lib/auth/org-context'
@@ -38,7 +38,7 @@ import type { Document } from '@/types/documents'
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication
-    const { user, error: authError } = await verifySession()
+    const { user } = await verifySession()
     if (!user) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Not authenticated' } },
@@ -100,7 +100,15 @@ export async function POST(request: NextRequest) {
     // Upload to Firebase Storage
     const app = getFirebaseAdminApp()
     const storage = getStorage(app)
-    const bucket = storage.bucket()
+    const bucketName = getAdminStorageBucketName()
+
+    if (!bucketName) {
+      throw new Error(
+        'Firebase Storage bucket is not configured. Set FIREBASE_STORAGE_BUCKET or NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET.'
+      )
+    }
+
+    const bucket = storage.bucket(bucketName)
     const fileBuffer = Buffer.from(await file.arrayBuffer())
 
     const fileRef = bucket.file(storagePath)
@@ -137,7 +145,6 @@ export async function POST(request: NextRequest) {
       fileSize: file.size,
       mimeType: file.type,
       fileExtension,
-      folderId: folderId || undefined,
       tags: [],
       version: 1,
       sharedWith: [],
@@ -146,6 +153,10 @@ export async function POST(request: NextRequest) {
       uploadedByName,
       createdAt: now,
       updatedAt: now,
+    }
+
+    if (folderId) {
+      documentData.folderId = folderId
     }
 
     await documentRef.set(documentData)

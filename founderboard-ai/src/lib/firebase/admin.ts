@@ -6,6 +6,23 @@ let app: App | undefined
 let adminAuth: Auth | undefined
 let adminDb: Firestore | undefined
 
+function normalizeStorageBucketName(bucket: string | undefined): string | undefined {
+  if (!bucket) {
+    return undefined
+  }
+
+  return bucket
+    .replace(/^gs:\/\//, '')
+    .replace(/\/+$/, '')
+    .trim()
+}
+
+function getAdminStorageBucketName(): string | undefined {
+  return normalizeStorageBucketName(
+    process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+  )
+}
+
 function getAdminApp(): App {
   if (!app) {
     const apps = getApps()
@@ -16,6 +33,7 @@ function getAdminApp(): App {
       const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID
       const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
       const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n')
+      const storageBucket = getAdminStorageBucketName()
 
       if (!projectId || !clientEmail || !privateKey) {
         throw new Error(
@@ -30,6 +48,7 @@ function getAdminApp(): App {
           clientEmail,
           privateKey,
         }),
+        storageBucket,
       })
     }
   }
@@ -52,4 +71,9 @@ function getAdminDb(): Firestore {
 }
 
 // Export getters to avoid initialization during build
-export { getAdminAuth as adminAuth, getAdminDb as adminDb, getAdminApp as getFirebaseAdminApp }
+export {
+  getAdminAuth as adminAuth,
+  getAdminDb as adminDb,
+  getAdminApp as getFirebaseAdminApp,
+  getAdminStorageBucketName,
+}

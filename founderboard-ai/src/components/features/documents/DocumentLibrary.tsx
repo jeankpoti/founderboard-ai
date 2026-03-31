@@ -27,7 +27,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Plus,
   Upload,
   Folder,
   Grid,
@@ -35,18 +34,26 @@ import {
   Search,
   RefreshCw,
   File,
+  Eye,
   Download,
   Trash2,
   MoreVertical,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { getDocuments, getFolders, deleteDocument, createDocument } from '@/lib/actions/documents'
-import type { Document, DocumentFolder, DocumentType } from '@/types/documents'
+import { getDocuments, getFolders, deleteDocument } from '@/lib/actions/documents'
+import type { Document, DocumentFolder } from '@/types/documents'
 import {
   DOCUMENT_TYPES,
   DOCUMENT_TYPE_LABELS,
@@ -61,10 +68,20 @@ import {
 interface DocumentCardProps {
   document: Document
   viewMode: 'grid' | 'list'
+  isDownloading: boolean
+  onView: () => void
+  onDownload: () => void
   onDelete: () => void
 }
 
-function DocumentCard({ document, viewMode, onDelete }: DocumentCardProps) {
+function DocumentCard({
+  document,
+  viewMode,
+  isDownloading,
+  onView,
+  onDownload,
+  onDelete,
+}: DocumentCardProps) {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -87,10 +104,8 @@ function DocumentCard({ document, viewMode, onDelete }: DocumentCardProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" asChild>
-            <a href={document.fileUrl} target="_blank" rel="noopener noreferrer">
-              <Download className="h-4 w-4" />
-            </a>
+          <Button variant="ghost" size="icon" onClick={onView} title="View document">
+            <Eye className="h-4 w-4" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -99,11 +114,13 @@ function DocumentCard({ document, viewMode, onDelete }: DocumentCardProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <a href={document.fileUrl} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </a>
+              <DropdownMenuItem onClick={onView}>
+                <Eye className="h-4 w-4 mr-2" />
+                View
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDownload} disabled={isDownloading}>
+                <Download className="h-4 w-4 mr-2" />
+                {isDownloading ? 'Downloading...' : 'Download'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onDelete} className="text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -129,11 +146,13 @@ function DocumentCard({ document, viewMode, onDelete }: DocumentCardProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <a href={document.fileUrl} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </a>
+              <DropdownMenuItem onClick={onView}>
+                <Eye className="h-4 w-4 mr-2" />
+                View
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDownload} disabled={isDownloading}>
+                <Download className="h-4 w-4 mr-2" />
+                {isDownloading ? 'Downloading...' : 'Download'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onDelete} className="text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -153,9 +172,29 @@ function DocumentCard({ document, viewMode, onDelete }: DocumentCardProps) {
         <p className="text-xs text-muted-foreground">
           {formatFileSize(document.fileSize)} • {formatDate(document.createdAt)}
         </p>
+        <div className="mt-4 flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" onClick={onView}>
+            <Eye className="h-4 w-4 mr-1" />
+            View
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={onDownload}
+            disabled={isDownloading}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            {isDownloading ? 'Downloading...' : 'Download'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )
+}
+
+function getDocumentAccessUrl(documentId: string, disposition: 'attachment' | 'inline' = 'attachment') {
+  return `/api/documents/${documentId}/download?disposition=${disposition}`
 }
 
 // ========================================
@@ -204,6 +243,9 @@ export function DocumentLibrary() {
   const [folders, setFolders] = useState<DocumentFolder[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null)
 
   // View options
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -308,6 +350,40 @@ export function DocumentLibrary() {
       console.error('Delete error:', err)
       setError('Failed to delete document.')
     }
+  }
+
+  const isPreviewableImage = (document: Document) => {
+    return document.mimeType.startsWith('image/')
+  }
+
+  const handleViewDocument = (document: Document) => {
+    if (isPreviewableImage(document)) {
+      setSelectedDocument(document)
+      setIsPreviewOpen(true)
+      return
+    }
+
+    handleOpenDocumentInNewTab(document)
+  }
+
+  const handleOpenDocumentInNewTab = (document: Document) => {
+    window.open(getDocumentAccessUrl(document.id, 'inline'), '_blank', 'noopener,noreferrer')
+  }
+
+  const handleDownloadDocument = (document: Document) => {
+    setIsDownloadingId(document.id)
+    setError(null)
+
+    const link = window.document.createElement('a')
+    link.href = getDocumentAccessUrl(document.id, 'attachment')
+    link.download = document.name
+    window.document.body.appendChild(link)
+    link.click()
+    link.remove()
+
+    window.setTimeout(() => {
+      setIsDownloadingId((currentId) => (currentId === document.id ? null : currentId))
+    }, 1000)
   }
 
   // Filter documents
@@ -512,6 +588,9 @@ export function DocumentLibrary() {
                   key={doc.id}
                   document={doc}
                   viewMode={viewMode}
+                  isDownloading={isDownloadingId === doc.id}
+                  onView={() => handleViewDocument(doc)}
+                  onDownload={() => handleDownloadDocument(doc)}
                   onDelete={() => handleDeleteDocument(doc.id)}
                 />
               ))}
@@ -523,6 +602,9 @@ export function DocumentLibrary() {
                   key={doc.id}
                   document={doc}
                   viewMode={viewMode}
+                  isDownloading={isDownloadingId === doc.id}
+                  onView={() => handleViewDocument(doc)}
+                  onDownload={() => handleDownloadDocument(doc)}
                   onDelete={() => handleDeleteDocument(doc.id)}
                 />
               ))}
@@ -530,6 +612,49 @@ export function DocumentLibrary() {
           )}
         </div>
       )}
+
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-0">
+            <DialogTitle>{selectedDocument?.name || 'Preview'}</DialogTitle>
+            <DialogDescription>
+              Previewing {selectedDocument?.type === 'image' ? 'image' : 'document'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-6 pb-6">
+            {selectedDocument && isPreviewableImage(selectedDocument) ? (
+              <div className="mt-4 overflow-hidden rounded-lg border bg-muted/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={getDocumentAccessUrl(selectedDocument.id, 'inline')}
+                  alt={selectedDocument.name}
+                  className="max-h-[70vh] w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="py-8 text-sm text-muted-foreground">
+                Preview is available for images. Other files open in a new tab.
+              </div>
+            )}
+            {selectedDocument && (
+              <div className="mt-4 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => handleOpenDocumentInNewTab(selectedDocument)}>
+                  <Eye className="h-4 w-4 mr-1" />
+                  Open in New Tab
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleDownloadDocument(selectedDocument)}
+                  disabled={isDownloadingId === selectedDocument.id}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  {isDownloadingId === selectedDocument.id ? 'Downloading...' : 'Download'}
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

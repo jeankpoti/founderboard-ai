@@ -51,6 +51,11 @@ export function EditIntegrationModal({
   const [name, setName] = useState('')
   const [appId, setAppId] = useState('')
   const [vendorNumber, setVendorNumber] = useState('')
+  const [githubRepo, setGithubRepo] = useState('')
+  const [slackChannel, setSlackChannel] = useState('')
+  const [googleAnalyticsPropertyId, setGoogleAnalyticsPropertyId] = useState('')
+  const [posthogProjectId, setPosthogProjectId] = useState('')
+  const [posthogHost, setPosthogHost] = useState('')
 
   // App Store Connect apps state
   const [apps, setApps] = useState<AppStoreApp[]>([])
@@ -68,6 +73,11 @@ export function EditIntegrationModal({
       setName(integration.name)
       setAppId(integration.config?.appStoreAppId || '')
       setVendorNumber(integration.config?.vendorNumber || '')
+      setGithubRepo(integration.config?.githubRepo || '')
+      setSlackChannel(integration.config?.slackChannel || '')
+      setGoogleAnalyticsPropertyId(integration.config?.googleAnalyticsPropertyId || '')
+      setPosthogProjectId(integration.config?.posthogProjectId || '')
+      setPosthogHost(integration.config?.posthogHost || '')
       setApps([])
       setAppsLoaded(false)
       setAppsError(null)
@@ -120,8 +130,18 @@ export function EditIntegrationModal({
       const result = await updateIntegration(integration.id, {
         name: name !== integration.name ? name : undefined,
         config: {
+          slackChannel: integration.type === 'slack' ? slackChannel || undefined : undefined,
+          githubRepo: integration.type === 'github' ? githubRepo || undefined : undefined,
           appStoreAppId: integration.type === 'app_store_connect' ? appId || undefined : undefined,
           vendorNumber: integration.type === 'app_store_connect' ? vendorNumber || undefined : undefined,
+          playPackageName: integration.type === 'google_play' ? appId || undefined : undefined,
+          googleAnalyticsPropertyId:
+            integration.type === 'google_analytics'
+              ? googleAnalyticsPropertyId || undefined
+              : undefined,
+          posthogProjectId:
+            integration.type === 'posthog' ? posthogProjectId || undefined : undefined,
+          posthogHost: integration.type === 'posthog' ? posthogHost || undefined : undefined,
         },
       })
 
@@ -182,7 +202,7 @@ export function EditIntegrationModal({
               {!appsLoaded ? (
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground">
-                    Click "Load Apps" to see your available apps.
+                    Click &quot;Load Apps&quot; to see your available apps.
                   </p>
                   {appId && (
                     <p className="text-sm text-muted-foreground">
@@ -241,6 +261,70 @@ export function EditIntegrationModal({
               placeholder="com.example.app"
             />
           </div>
+        )
+
+      case 'github':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="githubRepo">Repository</Label>
+            <Input
+              id="githubRepo"
+              value={githubRepo}
+              onChange={(e) => setGithubRepo(e.target.value)}
+              placeholder="owner/repository"
+            />
+          </div>
+        )
+
+      case 'google_analytics':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="googleAnalyticsPropertyId">GA4 Property ID</Label>
+            <Input
+              id="googleAnalyticsPropertyId"
+              value={googleAnalyticsPropertyId}
+              onChange={(e) => setGoogleAnalyticsPropertyId(e.target.value)}
+              placeholder="123456789"
+            />
+          </div>
+        )
+
+      case 'slack':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="slackChannel">Default Channel</Label>
+            <Input
+              id="slackChannel"
+              value={slackChannel}
+              onChange={(e) => setSlackChannel(e.target.value)}
+              placeholder="#founderboard"
+            />
+          </div>
+        )
+
+      case 'posthog':
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="posthogProjectId">Project ID</Label>
+              <Input
+                id="posthogProjectId"
+                value={posthogProjectId}
+                onChange={(e) => setPosthogProjectId(e.target.value)}
+                placeholder="12345"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="posthogHost">PostHog Host</Label>
+              <Input
+                id="posthogHost"
+                value={posthogHost}
+                onChange={(e) => setPosthogHost(e.target.value)}
+                placeholder="https://us.posthog.com"
+              />
+            </div>
+          </>
         )
 
       default:

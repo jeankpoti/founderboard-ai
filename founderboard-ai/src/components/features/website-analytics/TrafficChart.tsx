@@ -15,42 +15,44 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts'
 import { Button } from '@/components/ui/button'
 import type { GoogleAnalyticsMetrics } from '@/types/integrations'
 
 interface TrafficChartProps {
   metrics: GoogleAnalyticsMetrics[]
+  dateRange: '7d' | '30d' | '90d' | 'all'
+  onDateRangeChange: (range: '7d' | '30d' | '90d' | 'all') => void
 }
 
-type DateRange = '7d' | '30d' | '90d'
 type ChartMetric = 'sessions' | 'users' | 'pageviews'
 
-export function TrafficChart({ metrics }: TrafficChartProps) {
-  const [dateRange, setDateRange] = useState<DateRange>('30d')
+export function TrafficChart({
+  metrics,
+  dateRange,
+  onDateRangeChange,
+}: TrafficChartProps) {
   const [chartMetric, setChartMetric] = useState<ChartMetric>('sessions')
 
-  // Filter and prepare data based on date range
-  function getFilteredData() {
-    const now = new Date()
-    const daysBack = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90
+  function formatAxisDate(dateStr: string): string {
+    const date = new Date(dateStr)
 
-    const cutoffDate = new Date(now)
-    cutoffDate.setDate(cutoffDate.getDate() - daysBack)
+    if (dateRange === 'all') {
+      return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    }
 
-    return metrics
-      .filter((m) => new Date(m.period) >= cutoffDate)
-      .sort((a, b) => new Date(a.period).getTime() - new Date(b.period).getTime())
-      .map((m) => ({
-        date: new Date(m.period).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        sessions: m.sessions,
-        users: m.users,
-        pageviews: m.pageviews,
-      }))
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-  const chartData = getFilteredData()
+  const chartData = [...metrics]
+    .sort((a, b) => new Date(a.period).getTime() - new Date(b.period).getTime())
+    .map((m) => ({
+      period: m.period,
+      date: formatAxisDate(m.period),
+      sessions: m.sessions,
+      users: m.users,
+      pageviews: m.pageviews,
+    }))
 
   // No data
   if (metrics.length === 0) {
@@ -110,15 +112,15 @@ export function TrafficChart({ metrics }: TrafficChartProps) {
 
           {/* Date range */}
           <div className="flex rounded-lg border p-1">
-            {(['7d', '30d', '90d'] as DateRange[]).map((range) => (
+            {(['7d', '30d', '90d', 'all'] as const).map((range) => (
               <Button
                 key={range}
                 variant={dateRange === range ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => setDateRange(range)}
+                onClick={() => onDateRangeChange(range)}
                 className="h-7 px-3"
               >
-                {range}
+                {range === 'all' ? 'All Time' : range}
               </Button>
             ))}
           </div>
@@ -139,6 +141,8 @@ export function TrafficChart({ metrics }: TrafficChartProps) {
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="date"
+                minTickGap={dateRange === 'all' ? 40 : dateRange === '90d' ? 28 : 16}
+                interval="preserveStartEnd"
                 tick={{ fontSize: 12 }}
                 tickLine={false}
                 axisLine={false}
@@ -162,6 +166,13 @@ export function TrafficChart({ metrics }: TrafficChartProps) {
                           <span className="font-medium text-foreground">
                             {(payload[0].value as number).toLocaleString()}
                           </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date((payload[0].payload as { period: string }).period).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
                         </p>
                       </div>
                     )

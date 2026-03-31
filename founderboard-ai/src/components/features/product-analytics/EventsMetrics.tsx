@@ -3,21 +3,21 @@
 /**
  * EventsMetrics Component
  *
- * Displays KPI cards for Mixpanel metrics.
+ * Displays KPI cards for PostHog metrics.
  */
 
 import { Card, CardContent } from '@/components/ui/card'
-import type { MixpanelEvent, MixpanelFunnel, MixpanelRetention } from '@/types/integrations'
-import { getTotalMixpanelEvents, getAverageRetention } from '@/types/integrations'
+import type { PostHogEvent, PostHogFunnel, PostHogRetention } from '@/types/integrations'
+import { getTotalPostHogEvents, getAverageRetention } from '@/types/integrations'
 
 interface EventsMetricsProps {
-  events: MixpanelEvent[]
-  funnels: MixpanelFunnel[]
-  retention: MixpanelRetention[]
+  events: PostHogEvent[]
+  funnels: PostHogFunnel[]
+  retention: PostHogRetention[]
 }
 
 export function EventsMetrics({ events, funnels, retention }: EventsMetricsProps) {
-  const totalEvents = getTotalMixpanelEvents(events)
+  const totalEvents = getTotalPostHogEvents(events)
   const uniqueEventTypes = events.length
   const avgConversion = funnels.length > 0
     ? Math.round(funnels.reduce((sum, f) => sum + f.conversionRate, 0) / funnels.length)

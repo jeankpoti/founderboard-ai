@@ -1,7 +1,7 @@
 /**
  * Product Analytics Components
  *
- * Components for displaying Mixpanel data.
+ * Components for displaying PostHog data.
  */
 
 export { ProductAnalyticsDashboard } from './ProductAnalyticsDashboard'

@@ -1,7 +1,7 @@
 /**
  * Product Analytics Page
  *
- * Displays Mixpanel product analytics: events, funnels, retention.
+ * Displays PostHog product analytics: events, funnels, retention.
  */
 
 import { Suspense } from 'react'
@@ -12,7 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 
 export const metadata = {
   title: 'Product Analytics | Founderboard',
-  description: 'Track user events, funnels, and retention from Mixpanel',
+  description: 'Track user events, funnels, and retention from PostHog',
 }
 
 export default async function ProductAnalyticsPage() {
@@ -26,7 +26,7 @@ export default async function ProductAnalyticsPage() {
       <div>
         <h1 className="text-2xl font-bold">Product Analytics</h1>
         <p className="text-muted-foreground">
-          Track user events, conversion funnels, and retention from Mixpanel
+          Track user events, conversion funnels, and retention from PostHog
         </p>
       </div>
 

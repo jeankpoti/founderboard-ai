@@ -36,7 +36,7 @@ export type IntegrationType =
   | 'app_store_connect'  // iOS App Store
   | 'google_play'        // Google Play Store
   | 'google_analytics'   // Website analytics
-  | 'mixpanel'           // Product analytics
+  | 'posthog'            // Product analytics
   | 'intercom'           // Customer support
   | 'notion'             // Documentation
   | 'linear'             // Issue tracking
@@ -48,7 +48,7 @@ export const INTEGRATION_TYPES: IntegrationType[] = [
   'app_store_connect',
   'google_play',
   'google_analytics',
-  'mixpanel',
+  'posthog',
   'intercom',
   'notion',
   'linear',
@@ -115,13 +115,13 @@ export const INTEGRATION_META: Record<IntegrationType, IntegrationMeta> = {
     authType: 'oauth',
     docsUrl: 'https://developers.google.com/analytics',
   },
-  mixpanel: {
-    name: 'Mixpanel',
+  posthog: {
+    name: 'PostHog',
     description: 'Product analytics and user events',
     icon: '📊',
     category: 'analytics',
     authType: 'api_key',
-    docsUrl: 'https://developer.mixpanel.com/',
+    docsUrl: 'https://posthog.com/docs/api/queries',
   },
   intercom: {
     name: 'Intercom',
@@ -256,6 +256,12 @@ export type IntegrationConfig = {
   vendorNumber?: string
   /** Google Play: Package name */
   playPackageName?: string
+  /** Google Analytics: GA4 property ID */
+  googleAnalyticsPropertyId?: string
+  /** PostHog: Project ID */
+  posthogProjectId?: string
+  /** PostHog: App host, defaults to US cloud */
+  posthogHost?: string
   /** Sync frequency in minutes */
   syncFrequency?: number
   /** Which data to sync */
@@ -291,8 +297,17 @@ export interface AppStoreMetrics {
   /** Period (e.g., "2024-01-15") */
   period: string
 
-  /** Downloads in this period */
+  /** Total downloads in this period (new + re-downloads, excludes updates) */
   downloads: number
+
+  /** New downloads only (first-time installs) */
+  newDownloads: number
+
+  /** Re-downloads (users who previously had the app) */
+  redownloads: number
+
+  /** Updates (existing users updating to new version) */
+  updates: number
 
   /** Revenue in this period (in cents) */
   revenue: number
@@ -473,6 +488,19 @@ export const STRIPE_CHARGE_STATUS_COLORS: Record<StripeCharge['status'], string>
 /**
  * Schema for connecting an integration.
  */
+const integrationConfigSchema = z.object({
+  slackChannel: z.string().optional(),
+  githubRepo: z.string().optional(),
+  appStoreAppId: z.string().optional(),
+  vendorNumber: z.string().optional(),
+  playPackageName: z.string().optional(),
+  googleAnalyticsPropertyId: z.string().optional(),
+  posthogProjectId: z.string().optional(),
+  posthogHost: z.string().optional(),
+  syncFrequency: z.number().min(5).max(1440).optional(),
+  syncOptions: z.array(z.string()).optional(),
+})
+
 export const connectIntegrationSchema = z.object({
   type: z.enum(INTEGRATION_TYPES as [IntegrationType, ...IntegrationType[]]),
 
@@ -492,15 +520,95 @@ export const connectIntegrationSchema = z.object({
   serviceAccountJson: z.string().optional(),
 
   // Configuration
-  config: z.object({
-    slackChannel: z.string().optional(),
-    githubRepo: z.string().optional(),
-    appStoreAppId: z.string().optional(),
-    vendorNumber: z.string().optional(),
-    playPackageName: z.string().optional(),
-    syncFrequency: z.number().min(5).max(1440).optional(),
-    syncOptions: z.array(z.string()).optional(),
-  }).optional(),
+  config: integrationConfigSchema.optional(),
+}).superRefine((data, ctx) => {
+  const config = data.config || {}
+
+  switch (data.type) {
+    case 'app_store_connect':
+      if (!data.issuerId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['issuerId'], message: 'Issuer ID is required' })
+      }
+      if (!data.keyId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['keyId'], message: 'Key ID is required' })
+      }
+      if (!data.privateKey) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privateKey'], message: 'Private key is required' })
+      }
+      if (!config.appStoreAppId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['config', 'appStoreAppId'],
+          message: 'Select an App Store app to connect',
+        })
+      }
+      break
+    case 'google_play':
+      if (!data.serviceAccountJson) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['serviceAccountJson'],
+          message: 'Service account JSON is required',
+        })
+      }
+      if (!config.playPackageName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['config', 'playPackageName'],
+          message: 'Package name is required',
+        })
+      }
+      break
+    case 'stripe':
+    case 'intercom':
+      if (!data.apiKey) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['apiKey'], message: 'API key is required' })
+      }
+      break
+    case 'posthog':
+      if (!data.apiKey) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['apiKey'],
+          message: 'PostHog personal API key is required',
+        })
+      }
+      if (!config.posthogProjectId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['config', 'posthogProjectId'],
+          message: 'PostHog project ID is required',
+        })
+      }
+      break
+    case 'slack':
+    case 'github':
+    case 'google_analytics':
+    case 'notion':
+    case 'linear':
+      if (!data.accessToken) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['accessToken'],
+          message: 'Access token is required',
+        })
+      }
+      if (data.type === 'slack' && !config.slackChannel) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['config', 'slackChannel'],
+          message: 'Slack channel is required',
+        })
+      }
+      if (data.type === 'google_analytics' && !config.googleAnalyticsPropertyId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['config', 'googleAnalyticsPropertyId'],
+          message: 'Google Analytics Property ID is required',
+        })
+      }
+      break
+  }
 })
 
 /**
@@ -509,15 +617,7 @@ export const connectIntegrationSchema = z.object({
 export const updateIntegrationSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   status: z.enum(['active', 'error', 'expired', 'disconnected'] as const).optional(),
-  config: z.object({
-    slackChannel: z.string().optional(),
-    githubRepo: z.string().optional(),
-    appStoreAppId: z.string().optional(),
-    vendorNumber: z.string().optional(),
-    playPackageName: z.string().optional(),
-    syncFrequency: z.number().min(5).max(1440).optional(),
-    syncOptions: z.array(z.string()).optional(),
-  }).optional(),
+  config: integrationConfigSchema.optional(),
 })
 
 // ========================================
@@ -567,6 +667,36 @@ export function getAvailableIntegrations(
  */
 export function getTotalDownloads(metrics: AppStoreMetrics[]): number {
   return metrics.reduce((sum, m) => sum + m.downloads, 0)
+}
+
+/**
+ * Calculate total new downloads (first-time installs) across all periods.
+ *
+ * @param metrics - Array of app metrics
+ * @returns Total new downloads
+ */
+export function getTotalNewDownloads(metrics: AppStoreMetrics[]): number {
+  return metrics.reduce((sum, m) => sum + m.newDownloads, 0)
+}
+
+/**
+ * Calculate total re-downloads across all periods.
+ *
+ * @param metrics - Array of app metrics
+ * @returns Total re-downloads
+ */
+export function getTotalRedownloads(metrics: AppStoreMetrics[]): number {
+  return metrics.reduce((sum, m) => sum + m.redownloads, 0)
+}
+
+/**
+ * Calculate total updates across all periods.
+ *
+ * @param metrics - Array of app metrics
+ * @returns Total updates
+ */
+export function getTotalUpdates(metrics: AppStoreMetrics[]): number {
+  return metrics.reduce((sum, m) => sum + m.updates, 0)
 }
 
 /**
@@ -1330,13 +1460,13 @@ export function getTopPages(
 }
 
 // ========================================
-// MIXPANEL TYPES
+// POSTHOG TYPES
 // ========================================
 
 /**
- * Mixpanel event record.
+ * PostHog event record.
  */
-export interface MixpanelEvent {
+export interface PostHogEvent {
   /** Unique identifier */
   id: string
 
@@ -1363,9 +1493,9 @@ export interface MixpanelEvent {
 }
 
 /**
- * Mixpanel funnel record.
+ * PostHog funnel record.
  */
-export interface MixpanelFunnel {
+export interface PostHogFunnel {
   /** Unique identifier */
   id: string
 
@@ -1396,9 +1526,9 @@ export interface MixpanelFunnel {
 }
 
 /**
- * Mixpanel retention cohort record.
+ * PostHog retention cohort record.
  */
-export interface MixpanelRetention {
+export interface PostHogRetention {
   /** Unique identifier */
   id: string
 
@@ -1431,20 +1561,20 @@ export interface MixpanelRetention {
 }
 
 // ========================================
-// MIXPANEL HELPER FUNCTIONS
+// POSTHOG HELPER FUNCTIONS
 // ========================================
 
 /**
- * Get total events from Mixpanel data.
+ * Get total events from PostHog data.
  */
-export function getTotalMixpanelEvents(events: MixpanelEvent[]): number {
+export function getTotalPostHogEvents(events: PostHogEvent[]): number {
   return events.reduce((sum, e) => sum + e.eventCount, 0)
 }
 
 /**
- * Get total unique users from Mixpanel data.
+ * Get total unique users from PostHog data.
  */
-export function getTotalMixpanelUsers(events: MixpanelEvent[]): number {
+export function getTotalPostHogUsers(events: PostHogEvent[]): number {
   // This is approximate - actual unique users would need deduplication
   return Math.max(...events.map((e) => e.uniqueUsers), 0)
 }
@@ -1452,10 +1582,10 @@ export function getTotalMixpanelUsers(events: MixpanelEvent[]): number {
 /**
  * Get top events by count.
  */
-export function getTopMixpanelEvents(
-  events: MixpanelEvent[],
+export function getTopPostHogEvents(
+  events: PostHogEvent[],
   limit = 10
-): MixpanelEvent[] {
+): PostHogEvent[] {
   return [...events]
     .sort((a, b) => b.eventCount - a.eventCount)
     .slice(0, limit)
@@ -1465,7 +1595,7 @@ export function getTopMixpanelEvents(
  * Get average retention rate.
  */
 export function getAverageRetention(
-  retention: MixpanelRetention[],
+  retention: PostHogRetention[],
   day: 'day1' | 'day7' | 'day14' | 'day30'
 ): number | null {
   if (retention.length === 0) return null

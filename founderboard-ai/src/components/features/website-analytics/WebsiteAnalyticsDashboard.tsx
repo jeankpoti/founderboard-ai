@@ -6,7 +6,7 @@
  * Main dashboard showing Google Analytics data.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
@@ -29,25 +29,42 @@ import type {
 } from '@/types/integrations'
 import Link from 'next/link'
 
+export type WebsiteAnalyticsDateRange = '7d' | '30d' | '90d' | 'all'
+
+function getDateRangeParams(dateRange: WebsiteAnalyticsDateRange): {
+  startDate: string
+  endDate: string
+} {
+  const endDate = 'today'
+
+  switch (dateRange) {
+    case '7d':
+      return { startDate: '7daysAgo', endDate }
+    case '30d':
+      return { startDate: '30daysAgo', endDate }
+    case '90d':
+      return { startDate: '90daysAgo', endDate }
+    case 'all':
+      // The Data API returns only the available history for the property.
+      return { startDate: '2005-01-01', endDate }
+  }
+}
+
 export function WebsiteAnalyticsDashboard() {
   // State
   const [integration, setIntegration] = useState<Integration | null>(null)
   const [metrics, setMetrics] = useState<GoogleAnalyticsMetrics[]>([])
   const [pages, setPages] = useState<GoogleAnalyticsPageView[]>([])
   const [sources, setSources] = useState<GoogleAnalyticsTrafficSource[]>([])
+  const [dateRange, setDateRange] = useState<WebsiteAnalyticsDateRange>('30d')
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch data on mount
-  useEffect(() => {
-    loadData()
-  }, [])
-
   /**
    * Load Google Analytics integration and data.
    */
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
 
@@ -64,11 +81,13 @@ export function WebsiteAnalyticsDashboard() {
       setIntegration(gaIntegration || null)
 
       if (gaIntegration && gaIntegration.status === 'active') {
+        const { startDate, endDate } = getDateRangeParams(dateRange)
+
         // Fetch all data in parallel
         const [metricsResult, pagesResult, sourcesResult] = await Promise.all([
-          getGoogleAnalyticsMetrics(gaIntegration.id),
-          getGoogleAnalyticsPages(gaIntegration.id, 20),
-          getGoogleAnalyticsSources(gaIntegration.id, 15),
+          getGoogleAnalyticsMetrics(gaIntegration.id, startDate, endDate),
+          getGoogleAnalyticsPages(gaIntegration.id, 20, startDate, endDate),
+          getGoogleAnalyticsSources(gaIntegration.id, 15, startDate, endDate),
         ])
 
         if (metricsResult.success) setMetrics(metricsResult.data)
@@ -81,7 +100,12 @@ export function WebsiteAnalyticsDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [dateRange])
+
+  // Fetch data on mount
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   /**
    * Trigger sync for Google Analytics integration.
@@ -205,7 +229,11 @@ export function WebsiteAnalyticsDashboard() {
       {/* Traffic Chart */}
       <Card>
         <CardContent className="pt-6">
-          <TrafficChart metrics={metrics} />
+          <TrafficChart
+            metrics={metrics}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
         </CardContent>
       </Card>
 

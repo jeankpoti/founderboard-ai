@@ -16,7 +16,6 @@ import {
   RefreshCw,
   Plug,
   PlugZap,
-  ExternalLink,
   Settings,
   Trash2,
   RotateCw,
@@ -49,23 +48,23 @@ import {
 
 interface IntegrationCardProps {
   integration: Integration
-  onSync: () => void
+  onValidate: () => void
   onDisconnect: () => void
   onSettings: () => void
 }
 
 function IntegrationCard({
   integration,
-  onSync,
+  onValidate,
   onDisconnect,
   onSettings,
 }: IntegrationCardProps) {
   const meta = INTEGRATION_META[integration.type]
   const [isSyncing, setIsSyncing] = useState(false)
 
-  const handleSync = async () => {
+  const handleValidate = async () => {
     setIsSyncing(true)
-    await onSync()
+    await onValidate()
     setIsSyncing(false)
   }
 
@@ -87,9 +86,9 @@ function IntegrationCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleSync} disabled={isSyncing}>
+              <DropdownMenuItem onClick={handleValidate} disabled={isSyncing}>
                 <RotateCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-                Sync Now
+                Validate Connection
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onSettings}>
                 <Settings className="h-4 w-4 mr-2" />
@@ -112,17 +111,6 @@ function IntegrationCard({
           >
             {INTEGRATION_STATUS_LABELS[integration.status]}
           </Badge>
-          {integration.lastSyncAt && (
-            <span className="text-xs text-muted-foreground">
-              Last sync:{' '}
-              {new Date(integration.lastSyncAt).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-              })}
-            </span>
-          )}
         </div>
         {integration.lastError && (
           <p className="text-xs text-destructive mt-2">{integration.lastError}</p>
@@ -219,12 +207,14 @@ export function IntegrationsHub() {
   }, [fetchIntegrations])
 
   /**
-   * Handle sync.
+   * Validate a connection against the provider API.
    */
-  const handleSync = async (integrationId: string) => {
+  const handleValidate = async (integrationId: string) => {
     const result = await syncIntegration(integrationId)
     if (result.success) {
       fetchIntegrations()
+    } else {
+      setError(result.error.message)
     }
   }
 
@@ -285,7 +275,7 @@ export function IntegrationsHub() {
         <div>
           <h2 className="text-lg font-semibold">Integrations</h2>
           <p className="text-sm text-muted-foreground">
-            Connect your tools to sync data automatically
+            Connect your tools and validate each connection live against its API
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchIntegrations} disabled={isLoading}>
@@ -322,7 +312,7 @@ export function IntegrationsHub() {
               <IntegrationCard
                 key={integration.id}
                 integration={integration}
-                onSync={() => handleSync(integration.id)}
+                onValidate={() => handleValidate(integration.id)}
                 onDisconnect={() => handleDisconnect(integration)}
                 onSettings={() => handleSettingsClick(integration)}
               />

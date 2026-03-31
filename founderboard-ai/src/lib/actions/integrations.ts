@@ -21,6 +21,7 @@ import {
 import type { ApiResponse } from '@/types/api'
 import type {
   Integration,
+  IntegrationType,
   IntegrationCredentials,
   ConnectIntegrationInput,
   UpdateIntegrationInput,
@@ -33,9 +34,9 @@ import type {
   GoogleAnalyticsMetrics,
   GoogleAnalyticsPageView,
   GoogleAnalyticsTrafficSource,
-  MixpanelEvent,
-  MixpanelFunnel,
-  MixpanelRetention,
+  PostHogEvent,
+  PostHogFunnel,
+  PostHogRetention,
   IntercomConversation,
   IntercomMetrics,
   SlackNotificationConfig,
@@ -47,6 +48,639 @@ import {
   calculateAverageRating,
   type AppStoreApp,
 } from '@/lib/integrations/appStoreConnectClient'
+
+type LiveValidationResult = {
+  status: Integration['status']
+  lastError?: string
+}
+
+function normalizeIntegrationType(type: string | undefined): IntegrationType {
+  if (type === 'mixpanel') {
+    return 'posthog'
+  }
+
+  return type as IntegrationType
+}
+
+function getSafeCredentials(
+  credentials: IntegrationCredentials | undefined
+): IntegrationCredentials {
+  return {
+    expiresAt: credentials?.expiresAt,
+  }
+}
+
+function formatIntegrationRecord(
+  integrationId: string,
+  data: FirebaseFirestore.DocumentData,
+  validation?: LiveValidationResult
+): Integration {
+  const normalizedType = normalizeIntegrationType(data.type)
+
+  return {
+    ...data,
+    id: integrationId,
+    type: normalizedType,
+    status: validation?.status || data.status,
+    lastError: validation?.lastError || undefined,
+    lastSyncAt: undefined,
+    credentials: getSafeCredentials(data.credentials),
+    createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+    updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
+  } as Integration
+}
+
+async function validateIntegrationConnection(
+  type: IntegrationType,
+  credentials: IntegrationCredentials,
+  config: Integration['config'] = {}
+): Promise<LiveValidationResult> {
+  try {
+    switch (type) {
+      case 'app_store_connect': {
+        if (!credentials.issuerId || !credentials.keyId || !credentials.privateKey) {
+          return { status: 'error', lastError: 'Missing App Store Connect credentials' }
+        }
+
+        const client = new AppStoreConnectClient({
+          issuerId: credentials.issuerId,
+          keyId: credentials.keyId,
+          privateKey: credentials.privateKey,
+        })
+        await client.getApps()
+        return { status: 'active' }
+      }
+
+      case 'stripe': {
+        if (!credentials.apiKey) {
+          return { status: 'error', lastError: 'Missing Stripe API key' }
+        }
+
+        const response = await fetch('https://api.stripe.com/v1/account', {
+          headers: {
+            Authorization: `Bearer ${credentials.apiKey}`,
+          },
+        })
+
+        if (!response.ok) {
+          return { status: 'error', lastError: 'Stripe authentication failed' }
+        }
+
+        return { status: 'active' }
+      }
+
+      case 'github': {
+        if (!credentials.accessToken) {
+          return { status: 'error', lastError: 'Missing GitHub access token' }
+        }
+
+        const userResponse = await fetch('https://api.github.com/user', {
+          headers: {
+            Authorization: `Bearer ${credentials.accessToken}`,
+            Accept: 'application/vnd.github+json',
+          },
+        })
+        if (!userResponse.ok) {
+          return { status: 'error', lastError: 'GitHub authentication failed' }
+        }
+
+        if (config.githubRepo) {
+          if (!config.githubRepo.includes('/')) {
+            return {
+              status: 'error',
+              lastError: 'GitHub repository must use the format owner/repository',
+            }
+          }
+
+          const repoResponse = await fetch(`https://api.github.com/repos/${config.githubRepo}`, {
+            headers: {
+              Authorization: `Bearer ${credentials.accessToken}`,
+              Accept: 'application/vnd.github+json',
+            },
+          })
+          if (!repoResponse.ok) {
+            return { status: 'error', lastError: `GitHub repository not accessible: ${config.githubRepo}` }
+          }
+        }
+
+        return { status: 'active' }
+      }
+
+      case 'linear': {
+        if (!credentials.accessToken) {
+          return { status: 'error', lastError: 'Missing Linear access token' }
+        }
+
+        const response = await fetch('https://api.linear.app/graphql', {
+          method: 'POST',
+          headers: {
+            Authorization: credentials.accessToken,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: 'query Viewer { viewer { id name } }',
+          }),
+        })
+
+        if (!response.ok) {
+          return { status: 'error', lastError: 'Linear authentication failed' }
+        }
+
+        const payload = await response.json() as { errors?: Array<{ message?: string }> }
+        if (payload.errors?.length) {
+          return { status: 'error', lastError: payload.errors[0]?.message || 'Linear authentication failed' }
+        }
+
+        return { status: 'active' }
+      }
+
+      case 'slack': {
+        if (!credentials.accessToken) {
+          return { status: 'error', lastError: 'Missing Slack access token' }
+        }
+
+        const response = await fetch('https://slack.com/api/auth.test', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${credentials.accessToken}`,
+          },
+        })
+
+        const payload = await response.json() as { ok?: boolean; error?: string }
+        if (!response.ok || !payload.ok) {
+          return { status: 'error', lastError: payload.error || 'Slack authentication failed' }
+        }
+
+        return { status: 'active' }
+      }
+
+      case 'notion': {
+        if (!credentials.accessToken) {
+          return { status: 'error', lastError: 'Missing Notion access token' }
+        }
+
+        const response = await fetch('https://api.notion.com/v1/users/me', {
+          headers: {
+            Authorization: `Bearer ${credentials.accessToken}`,
+            'Notion-Version': '2022-06-28',
+          },
+        })
+
+        if (!response.ok) {
+          return { status: 'error', lastError: 'Notion authentication failed' }
+        }
+
+        return { status: 'active' }
+      }
+
+      case 'google_analytics': {
+        if (!credentials.accessToken) {
+          return { status: 'error', lastError: 'Missing Google Analytics access token' }
+        }
+
+        const response = await fetch('https://analyticsadmin.googleapis.com/v1beta/accounts?pageSize=1', {
+          headers: {
+            Authorization: `Bearer ${credentials.accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          return { status: 'error', lastError: 'Google Analytics authentication failed' }
+        }
+
+        return { status: 'active' }
+      }
+
+      case 'intercom': {
+        if (!credentials.apiKey) {
+          return { status: 'error', lastError: 'Missing Intercom API key' }
+        }
+
+        const response = await fetch('https://api.intercom.io/me', {
+          headers: {
+            Authorization: `Bearer ${credentials.apiKey}`,
+            Accept: 'application/json',
+            'Intercom-Version': '2.11',
+          },
+        })
+
+        if (!response.ok) {
+          return { status: 'error', lastError: 'Intercom authentication failed' }
+        }
+
+        return { status: 'active' }
+      }
+
+      case 'google_play': {
+        if (!credentials.serviceAccountJson) {
+          return { status: 'error', lastError: 'Missing Google Play service account JSON' }
+        }
+        if (!config.playPackageName) {
+          return { status: 'error', lastError: 'Missing Google Play package name' }
+        }
+
+        JSON.parse(credentials.serviceAccountJson)
+        return {
+          status: 'error',
+          lastError: 'Google Play live validation is not implemented yet for service-account auth',
+        }
+      }
+
+      case 'posthog': {
+        if (!credentials.apiKey) {
+          return { status: 'error', lastError: 'Missing PostHog personal API key' }
+        }
+        if (!config.posthogProjectId) {
+          return { status: 'error', lastError: 'Missing PostHog project ID' }
+        }
+
+        const host = getPostHogHost(config)
+        const response = await fetch(`${host}/api/projects/${config.posthogProjectId}/query/`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${credentials.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: {
+              kind: 'HogQLQuery',
+              query: 'SELECT 1 AS healthy LIMIT 1',
+            },
+          }),
+        })
+
+        if (!response.ok) {
+          return {
+            status: 'error',
+            lastError: await getPostHogErrorMessage(response),
+          }
+        }
+
+        return { status: 'active' }
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Validation failed'
+    return { status: 'error', lastError: message }
+  }
+}
+
+type PostHogQueryResponse = {
+  columns?: string[]
+  results?: unknown[]
+}
+
+type PostHogApiErrorResponse = {
+  type?: string
+  code?: string
+  detail?: string
+}
+
+function getPostHogHost(config: Integration['config'] = {}): string {
+  const configuredHost = config.posthogHost?.trim()
+  const host = configuredHost && configuredHost.length > 0
+    ? configuredHost
+    : 'https://us.posthog.com'
+
+  return host.replace(/\/+$/, '')
+}
+
+async function getPostHogIntegrationContext(
+  integrationId: string,
+  orgId: string
+): Promise<{
+  credentials: IntegrationCredentials
+  config: Integration['config']
+  host: string
+  projectId: string
+}> {
+  const db = adminDb()
+  const integrationDoc = await db.collection(COLLECTIONS.INTEGRATIONS).doc(integrationId).get()
+
+  if (!integrationDoc.exists) {
+    throw new Error('Integration not found')
+  }
+
+  const data = integrationDoc.data()!
+  if (data.orgId !== orgId) {
+    throw new Error('Access denied')
+  }
+
+  if (normalizeIntegrationType(data.type) !== 'posthog') {
+    throw new Error('Integration is not PostHog')
+  }
+
+  const credentials = (data.credentials || {}) as IntegrationCredentials
+  const config = (data.config || {}) as Integration['config']
+  const projectId = config.posthogProjectId?.trim()
+
+  if (!credentials.apiKey) {
+    throw new Error('Missing PostHog personal API key')
+  }
+  if (!projectId) {
+    throw new Error('Missing PostHog project ID')
+  }
+
+  return {
+    credentials,
+    config,
+    host: getPostHogHost(config),
+    projectId,
+  }
+}
+
+function normalizePostHogQueryRows(
+  payload: PostHogQueryResponse
+): Array<Record<string, unknown>> {
+  if (!Array.isArray(payload.results)) {
+    return []
+  }
+
+  return payload.results.flatMap((row) => {
+    if (Array.isArray(row) && Array.isArray(payload.columns)) {
+      return [Object.fromEntries(payload.columns.map((column, index) => [column, row[index]]))]
+    }
+
+    if (row && typeof row === 'object') {
+      return [row as Record<string, unknown>]
+    }
+
+    return []
+  })
+}
+
+async function runPostHogHogQLQuery(
+  host: string,
+  projectId: string,
+  apiKey: string,
+  query: string
+): Promise<Array<Record<string, unknown>>> {
+  const response = await fetch(`${host}/api/projects/${projectId}/query/`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query: {
+        kind: 'HogQLQuery',
+        query,
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(await getPostHogErrorMessage(response))
+  }
+
+  const payload = await response.json() as PostHogQueryResponse
+  return normalizePostHogQueryRows(payload)
+}
+
+function parsePostHogNumber(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+
+  return 0
+}
+
+async function getPostHogErrorMessage(response: Response): Promise<string> {
+  const fallback = `PostHog API error: ${response.status} ${response.statusText}`
+
+  try {
+    const payload = await response.json() as PostHogApiErrorResponse
+    if (payload.detail?.includes("query:read")) {
+      return 'PostHog personal API key requires the query:read scope'
+    }
+
+    return payload.detail || fallback
+  } catch {
+    return fallback
+  }
+}
+
+async function githubRequest<T>(
+  accessToken: string,
+  endpoint: string
+): Promise<T> {
+  const response = await fetch(`https://api.github.com${endpoint}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`GitHub API error: ${response.status} ${response.statusText} - ${errorText}`)
+  }
+
+  return response.json() as Promise<T>
+}
+
+async function getGitHubIntegrationContext(
+  integrationId: string,
+  orgId: string
+): Promise<{
+  credentials: IntegrationCredentials
+  config: Integration['config']
+}> {
+  const db = adminDb()
+  const integrationDoc = await db
+    .collection(COLLECTIONS.INTEGRATIONS)
+    .doc(integrationId)
+    .get()
+
+  if (!integrationDoc.exists) {
+    throw new Error('Integration not found')
+  }
+
+  const integrationData = integrationDoc.data()!
+  if (integrationData.orgId !== orgId) {
+    throw new Error('Access denied')
+  }
+
+  if (integrationData.type !== 'github') {
+    throw new Error('Integration is not GitHub')
+  }
+
+  const credentials = integrationData.credentials as IntegrationCredentials
+  if (!credentials.accessToken) {
+    throw new Error('Missing GitHub access token')
+  }
+
+  return {
+    credentials,
+    config: integrationData.config || {},
+  }
+}
+
+async function resolveGitHubRepositories(
+  accessToken: string,
+  configuredRepo: string | undefined,
+  userLogin: string,
+  limit = 5
+): Promise<string[]> {
+  if (configuredRepo?.includes('/')) {
+    return [configuredRepo]
+  }
+
+  interface GitHubRepoSummary {
+    full_name: string
+  }
+
+  if (configuredRepo && configuredRepo === userLogin) {
+    const repos = await githubRequest<GitHubRepoSummary[]>(
+      accessToken,
+      `/user/repos?sort=updated&per_page=${limit}&affiliation=owner,collaborator,organization_member`
+    )
+
+    return repos.map((repo) => repo.full_name)
+  }
+
+  if (configuredRepo) {
+    const repos = await githubRequest<GitHubRepoSummary[]>(
+      accessToken,
+      `/users/${configuredRepo}/repos?sort=updated&per_page=${limit}`
+    )
+
+    return repos.map((repo) => repo.full_name)
+  }
+
+  const repos = await githubRequest<GitHubRepoSummary[]>(
+    accessToken,
+    `/user/repos?sort=updated&per_page=${limit}&affiliation=owner,collaborator,organization_member`
+  )
+
+  return repos.map((repo) => repo.full_name)
+}
+
+async function getGoogleAnalyticsIntegrationContext(
+  integrationId: string,
+  orgId: string
+): Promise<{
+  accessToken: string
+  propertyId: string
+}> {
+  const db = adminDb()
+  const integrationDoc = await db
+    .collection(COLLECTIONS.INTEGRATIONS)
+    .doc(integrationId)
+    .get()
+
+  if (!integrationDoc.exists) {
+    throw new Error('Integration not found')
+  }
+
+  const integrationData = integrationDoc.data()!
+  if (integrationData.orgId !== orgId) {
+    throw new Error('Access denied')
+  }
+
+  if (integrationData.type !== 'google_analytics') {
+    throw new Error('Integration is not Google Analytics')
+  }
+
+  const credentials = integrationData.credentials as IntegrationCredentials
+  const config = (integrationData.config || {}) as Integration['config']
+  if (!credentials.accessToken) {
+    throw new Error('Missing Google Analytics access token')
+  }
+
+  const configuredPropertyId = config.googleAnalyticsPropertyId?.trim()
+  if (configuredPropertyId) {
+    return {
+      accessToken: credentials.accessToken,
+      propertyId: configuredPropertyId.replace(/^properties\//, ''),
+    }
+  }
+
+  interface AccountSummariesResponse {
+    accountSummaries?: Array<{
+      propertySummaries?: Array<{
+        property?: string
+      }>
+    }>
+  }
+
+  const response = await fetch(
+    'https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200',
+    {
+      headers: {
+        Authorization: `Bearer ${credentials.accessToken}`,
+      },
+    }
+  )
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Google Analytics Admin API error: ${response.status} ${response.statusText} - ${errorText}`)
+  }
+
+  const payload = await response.json() as AccountSummariesResponse
+  const property = payload.accountSummaries
+    ?.flatMap((account) => account.propertySummaries || [])
+    .find((summary) => summary.property)?.property
+
+  if (!property) {
+    throw new Error('No accessible Google Analytics properties found')
+  }
+
+  return {
+    accessToken: credentials.accessToken,
+    propertyId: property.replace(/^properties\//, ''),
+  }
+}
+
+async function runGoogleAnalyticsReport(
+  accessToken: string,
+  propertyId: string,
+  body: Record<string, unknown>
+): Promise<{
+  dimensionHeaders?: Array<{ name: string }>
+  metricHeaders?: Array<{ name: string }>
+  rows?: Array<{
+    dimensionValues?: Array<{ value?: string }>
+    metricValues?: Array<{ value?: string }>
+  }>
+}> {
+  const response = await fetch(
+    `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+  )
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Google Analytics Data API error: ${response.status} ${response.statusText} - ${errorText}`)
+  }
+
+  return response.json()
+}
+
+function parseGoogleAnalyticsNumber(value: string | undefined): number {
+  if (!value) return 0
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function normalizeGoogleAnalyticsPercent(value: string | undefined): number {
+  const parsed = parseGoogleAnalyticsNumber(value)
+  return parsed <= 1 ? Math.round(parsed * 1000) / 10 : Math.round(parsed * 10) / 10
+}
 
 // ========================================
 // APP STORE CONNECT - FETCH APPS
@@ -193,23 +827,18 @@ export async function getIntegrations(): Promise<ApiResponse<Integration[]>> {
       .where('orgId', '==', orgContext.organization.id)
       .get()
 
-    const integrations = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      // Don't expose full credentials to client
-      const safeCredentials: IntegrationCredentials = {
-        // Only include metadata, not actual secrets
-        expiresAt: data.credentials?.expiresAt,
-      }
+    const integrations = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        const data = doc.data()
+        const validation = await validateIntegrationConnection(
+          normalizeIntegrationType(data.type),
+          (data.credentials || {}) as IntegrationCredentials,
+          data.config || {}
+        )
 
-      return {
-        ...data,
-        id: doc.id,
-        credentials: safeCredentials,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
-        lastSyncAt: data.lastSyncAt?.toDate?.()?.toISOString() || data.lastSyncAt,
-      }
-    }) as Integration[]
+        return formatIntegrationRecord(doc.id, data, validation)
+      })
+    )
 
     return { success: true, data: integrations }
   } catch (error) {
@@ -254,19 +883,13 @@ export async function getIntegration(
       }
     }
 
-    // Don't expose full credentials
-    const safeCredentials: IntegrationCredentials = {
-      expiresAt: data.credentials?.expiresAt,
-    }
+    const validation = await validateIntegrationConnection(
+      normalizeIntegrationType(data.type),
+      (data.credentials || {}) as IntegrationCredentials,
+      data.config || {}
+    )
 
-    const integration: Integration = {
-      ...data,
-      id: doc.id,
-      credentials: safeCredentials,
-      createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-      updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
-      lastSyncAt: data.lastSyncAt?.toDate?.()?.toISOString() || data.lastSyncAt,
-    } as Integration
+    const integration = formatIntegrationRecord(doc.id, data, validation)
 
     return { success: true, data: integration }
   } catch (error) {
@@ -328,11 +951,14 @@ export async function connectIntegration(
     const existingSnapshot = await db
       .collection(COLLECTIONS.INTEGRATIONS)
       .where('orgId', '==', orgContext.organization.id)
-      .where('type', '==', validation.data.type)
-      .limit(1)
       .get()
 
-    if (!existingSnapshot.empty) {
+    const hasExistingType = existingSnapshot.docs.some((doc) => {
+      const existingType = normalizeIntegrationType(doc.data().type)
+      return existingType === validation.data.type
+    })
+
+    if (hasExistingType) {
       return {
         success: false,
         error: {
@@ -357,6 +983,22 @@ export async function connectIntegration(
     if (validation.data.privateKey) credentials.privateKey = validation.data.privateKey
     if (validation.data.serviceAccountJson) {
       credentials.serviceAccountJson = validation.data.serviceAccountJson
+    }
+
+    const validationStatus = await validateIntegrationConnection(
+      validation.data.type,
+      credentials,
+      validation.data.config || {}
+    )
+
+    if (validationStatus.status !== 'active') {
+      return {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: validationStatus.lastError || 'Unable to validate integration credentials',
+        },
+      }
     }
 
     // Create integration
@@ -390,7 +1032,7 @@ export async function connectIntegration(
       data: {
         id: integrationRef.id,
         ...integrationData,
-        credentials: { expiresAt: credentials.expiresAt },
+        credentials: getSafeCredentials(credentials),
       },
     }
   } catch (error) {
@@ -460,8 +1102,30 @@ export async function updateIntegration(
       }
     }
 
+    const mergedConfig = {
+      ...(existingData.config || {}),
+      ...(validation.data.config || {}),
+    }
+
+    const validationStatus = await validateIntegrationConnection(
+      normalizeIntegrationType(existingData.type),
+      (existingData.credentials || {}) as IntegrationCredentials,
+      mergedConfig
+    )
+
+    if (validationStatus.status !== 'active') {
+      return {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: validationStatus.lastError || 'Updated integration settings are invalid',
+        },
+      }
+    }
+
     const updateData: Partial<Integration> = {
       ...validation.data,
+      config: validation.data.config ? mergedConfig : existingData.config,
       updatedAt: new Date().toISOString(),
     }
 
@@ -471,7 +1135,10 @@ export async function updateIntegration(
       ...existingData,
       ...updateData,
       id: integrationId,
-      credentials: { expiresAt: existingData.credentials?.expiresAt },
+      type: normalizeIntegrationType(existingData.type),
+      status: validationStatus.status,
+      lastError: validationStatus.lastError,
+      credentials: getSafeCredentials(existingData.credentials),
       createdAt: existingData.createdAt?.toDate?.()?.toISOString() || existingData.createdAt,
     } as Integration
 
@@ -632,9 +1299,25 @@ export async function getAppStoreMetrics(
 
     console.log(`[getAppStoreMetrics] Selected app: ${app.name} (ID: ${app.id})`)
 
-    // Fetch reviews to get rating data
+    // Fetch reviews to get recent written feedback
     const reviews = await client.getCustomerReviews(app.id, 50)
-    const avgRating = calculateAverageRating(reviews)
+    const publicMetadata = await client.getPublicAppMetadata(app.bundleId)
+    const avgRating = publicMetadata?.averageRating || calculateAverageRating(reviews)
+    const totalRatings = publicMetadata?.ratingCount || reviews.length
+
+    // Try to fetch analytics data (active devices, etc.)
+    // Note: Analytics reports require setup and take 1-2 days to generate initially
+    let analyticsData: { activeDevices: number; installs: number; sessions: number } | null = null
+    try {
+      analyticsData = await client.getAppUsageMetrics(app.id)
+      if (analyticsData) {
+        console.log(`[getAppStoreMetrics] Analytics data: ${JSON.stringify(analyticsData)}`)
+      } else {
+        console.log(`[getAppStoreMetrics] Analytics data not yet available (reports may still be generating)`)
+      }
+    } catch (analyticsError) {
+      console.log(`[getAppStoreMetrics] Analytics API not available:`, analyticsError)
+    }
 
     // Build date range for fetching
     const today = new Date()
@@ -654,7 +1337,10 @@ export async function getAppStoreMetrics(
     console.log(`[getAppStoreMetrics] Fetching ${daysToFetch} days of data (startDate: ${startDate || 'All Time'})`)
 
     // Sales reports have ~1-2 day delay, start from day 2
-    for (let i = 2; i <= daysToFetch + 2; i++) {
+    // Apple only retains daily reports for 365 days, so cap at 364 to be safe
+    const maxDaysBack = Math.min(daysToFetch + 2, 364)
+
+    for (let i = 2; i <= maxDaysBack; i++) {
       const date = new Date()
       date.setDate(date.getDate() - i)
       const dateStr = date.toISOString().split('T')[0]
@@ -668,8 +1354,15 @@ export async function getAppStoreMetrics(
 
     console.log(`[getAppStoreMetrics] Fetching ${dates.length} days of data`)
 
-    // Collect daily metrics
-    const dailyMetrics: Map<string, { downloads: number; revenue: number; currency: string }> = new Map()
+    // Collect daily metrics with breakdown by type
+    const dailyMetrics: Map<string, {
+      downloads: number
+      newDownloads: number
+      redownloads: number
+      updates: number
+      revenue: number
+      currency: string
+    }> = new Map()
 
     if (config.vendorNumber && dates.length > 0) {
       // Fetch in batches of 7
@@ -686,9 +1379,23 @@ export async function getAppStoreMetrics(
         for (const { reportDate, reports } of batchResults) {
           for (const report of reports) {
             // Only include data for the selected app
-            if (report.appId === app.id) {
-              const existing = dailyMetrics.get(reportDate) || { downloads: 0, revenue: 0, currency: 'USD' }
+            if (
+              report.appId === app.id ||
+              report.sku === app.sku ||
+              report.parentIdentifier === app.sku
+            ) {
+              const existing = dailyMetrics.get(reportDate) || {
+                downloads: 0,
+                newDownloads: 0,
+                redownloads: 0,
+                updates: 0,
+                revenue: 0,
+                currency: 'USD'
+              }
               existing.downloads += report.units
+              existing.newDownloads += report.downloads
+              existing.redownloads += report.redownloads
+              existing.updates += report.updates
               existing.revenue += report.proceeds
               if (report.proceedsCurrency) {
                 existing.currency = report.proceedsCurrency
@@ -702,6 +1409,9 @@ export async function getAppStoreMetrics(
 
     const now = new Date().toISOString()
 
+    // Get active devices from analytics (0 if not available)
+    const activeDevices = analyticsData?.activeDevices || 0
+
     // Build metrics array
     const metrics: AppStoreMetrics[] = []
     for (const [period, data] of dailyMetrics) {
@@ -714,12 +1424,15 @@ export async function getAppStoreMetrics(
         platform: 'ios',
         period,
         downloads: data.downloads,
-        revenue: data.revenue,
+        newDownloads: data.newDownloads,
+        redownloads: data.redownloads,
+        updates: data.updates,
+        revenue: Math.round(data.revenue * 100),
         currency: data.currency,
-        activeDevices: 0,
+        activeDevices, // From Analytics API (same value for all periods as it's a current snapshot)
         crashFreeRate: 99.5,
         averageRating: avgRating,
-        totalRatings: reviews.length,
+        totalRatings,
         fetchedAt: now,
       })
     }
@@ -742,6 +1455,7 @@ export async function getAppStoreMetrics(
 
 /**
  * Get app reviews for an integration.
+ * Fetches directly from Apple's API for real-time data.
  */
 export async function getAppReviews(
   integrationId: string,
@@ -758,7 +1472,7 @@ export async function getAppReviews(
 
     const db = adminDb()
 
-    // Verify integration belongs to org
+    // Get integration
     const integrationDoc = await db
       .collection(COLLECTIONS.INTEGRATIONS)
       .doc(integrationId)
@@ -771,36 +1485,80 @@ export async function getAppReviews(
       }
     }
 
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
+    const integration = integrationDoc.data()!
+    if (integration.orgId !== orgContext.organization.id) {
       return {
         success: false,
         error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
       }
     }
 
-    const snapshot = await db
-      .collection(COLLECTIONS.APP_REVIEWS)
-      .where('integrationId', '==', integrationId)
-      .orderBy('reviewDate', 'desc')
-      .limit(limit)
-      .get()
+    // Only handle App Store Connect for now
+    if (integration.type !== 'app_store_connect') {
+      return { success: true, data: [] }
+    }
 
-    const reviews = snapshot.docs.map((doc) => {
-      const data = doc.data()
+    const credentials = integration.credentials as IntegrationCredentials
+    const config = integration.config as { appStoreAppId?: string; vendorNumber?: string }
+
+    // Validate credentials
+    if (!credentials?.issuerId || !credentials?.keyId || !credentials?.privateKey) {
       return {
-        ...data,
-        id: doc.id,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
-        respondedAt: data.respondedAt?.toDate?.()?.toISOString() || data.respondedAt,
+        success: false,
+        error: { code: 'INVALID_CREDENTIALS', message: 'Missing API credentials' },
       }
-    }) as AppReview[]
+    }
+
+    // Create API client
+    const client = new AppStoreConnectClient({
+      issuerId: credentials.issuerId,
+      keyId: credentials.keyId,
+      privateKey: credentials.privateKey,
+    })
+
+    // Get apps
+    const apps = await client.getApps()
+    if (apps.length === 0) {
+      return { success: true, data: [] }
+    }
+
+    // Select the configured app or first app
+    const targetAppId = config.appStoreAppId
+    const app = targetAppId
+      ? apps.find((a) => a.id === targetAppId) || apps[0]
+      : apps[0]
+
+    console.log(`[getAppReviews] Fetching reviews for app: ${app.name} (ID: ${app.id})`)
+
+    // Fetch reviews directly from API
+    const apiReviews = await client.getCustomerReviews(app.id, limit)
+    console.log(`[getAppReviews] Fetched ${apiReviews.length} reviews from API`)
+
+    const now = new Date().toISOString()
+
+    // Transform to AppReview format
+    const reviews: AppReview[] = apiReviews.map((review) => ({
+      id: review.id,
+      orgId: orgContext.organization.id,
+      integrationId,
+      appId: app.id,
+      platform: 'ios' as const,
+      externalId: review.id,
+      rating: review.rating,
+      title: review.title,
+      body: review.body,
+      authorName: review.reviewerNickname,
+      reviewDate: review.createdDate,
+      fetchedAt: now,
+    }))
 
     return { success: true, data: reviews }
   } catch (error) {
     console.error('Get app reviews error:', error)
+    const message = error instanceof Error ? error.message : 'Failed to fetch reviews'
     return {
       success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch reviews' },
+      error: { code: 'INTERNAL_ERROR', message },
     }
   }
 }
@@ -810,8 +1568,7 @@ export async function getAppReviews(
 // ========================================
 
 /**
- * Trigger a sync for an integration.
- * Fetches real data from the external service and stores it in Firestore.
+ * Trigger a live validation for an integration.
  */
 export async function syncIntegration(
   integrationId: string
@@ -851,47 +1608,35 @@ export async function syncIntegration(
       }
     }
 
-    const integrationType = data.type as string
-
     try {
-      // Handle App Store Connect sync
-      if (integrationType === 'app_store_connect') {
-        await syncAppStoreConnect(
-          db,
-          integrationId,
-          orgContext.organization.id,
-          data.credentials,
-          data.config
-        )
-      }
-      // Other integration types can be added here
-      // else if (integrationType === 'google_play') { ... }
+      const validation = await validateIntegrationConnection(
+        normalizeIntegrationType(data.type),
+        (data.credentials || {}) as IntegrationCredentials,
+        data.config || {}
+      )
 
-      // Update last sync time on success
-      await integrationRef.update({
-        lastSyncAt: new Date().toISOString(),
-        lastError: null,
-        status: 'active',
-        updatedAt: new Date().toISOString(),
-      })
+      if (validation.status !== 'active') {
+        return {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: validation.lastError || 'Integration validation failed',
+          },
+        }
+      }
 
       return {
         success: true,
-        data: { message: 'Sync completed successfully.' },
+        data: { message: 'Integration validated successfully.' },
       }
     } catch (syncError) {
-      // Update integration with error status
-      const errorMessage = syncError instanceof Error ? syncError.message : 'Unknown sync error'
-      await integrationRef.update({
-        lastError: errorMessage,
-        status: 'error',
-        updatedAt: new Date().toISOString(),
-      })
-
       console.error('Sync error:', syncError)
       return {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: errorMessage },
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: syncError instanceof Error ? syncError.message : 'Unknown sync error',
+        },
       }
     }
   } catch (error) {
@@ -900,92 +1645,6 @@ export async function syncIntegration(
       success: false,
       error: { code: 'INTERNAL_ERROR', message: 'Failed to start sync' },
     }
-  }
-}
-
-/**
- * Sync data from App Store Connect.
- * Only syncs reviews to Firestore. Metrics are fetched directly from API.
- */
-async function syncAppStoreConnect(
-  db: FirebaseFirestore.Firestore,
-  integrationId: string,
-  orgId: string,
-  credentials: IntegrationCredentials,
-  config: { appStoreAppId?: string; vendorNumber?: string }
-): Promise<void> {
-  // Validate credentials
-  if (!credentials.issuerId || !credentials.keyId || !credentials.privateKey) {
-    throw new Error('Missing App Store Connect credentials (issuerId, keyId, or privateKey)')
-  }
-
-  // Create API client
-  const client = new AppStoreConnectClient({
-    issuerId: credentials.issuerId,
-    keyId: credentials.keyId,
-    privateKey: credentials.privateKey,
-  })
-
-  // Get apps
-  const apps = await client.getApps()
-
-  if (apps.length === 0) {
-    throw new Error('No apps found in App Store Connect account')
-  }
-
-  // Filter to specific app if configured, otherwise use first app
-  const targetAppId = config.appStoreAppId
-  const app = targetAppId
-    ? apps.find((a) => a.id === targetAppId) || apps[0]
-    : apps[0]
-
-  console.log(`[Sync] App selected: ${app.name} (ID: ${app.id})`)
-
-  // Fetch reviews
-  const reviews = await client.getCustomerReviews(app.id, 50)
-  console.log(`[Sync] Fetched ${reviews.length} reviews`)
-
-  const now = new Date().toISOString()
-
-  // Get existing reviews to avoid duplicates
-  const existingReviews = await db
-    .collection(COLLECTIONS.APP_REVIEWS)
-    .where('integrationId', '==', integrationId)
-    .where('appId', '==', app.id)
-    .get()
-
-  const existingExternalIds = new Set(
-    existingReviews.docs.map((doc) => doc.data().externalId)
-  )
-
-  // Only add reviews that don't already exist
-  const newReviews = reviews.filter((review) => !existingExternalIds.has(review.id))
-
-  if (newReviews.length > 0) {
-    const batch = db.batch()
-
-    for (const review of newReviews) {
-      const reviewRef = db.collection(COLLECTIONS.APP_REVIEWS).doc()
-      batch.set(reviewRef, {
-        id: reviewRef.id,
-        orgId,
-        integrationId,
-        appId: app.id,
-        platform: 'ios' as const,
-        externalId: review.id,
-        rating: review.rating,
-        title: review.title || null,
-        body: review.body,
-        authorName: review.reviewerNickname,
-        appVersion: null,
-        reviewDate: review.createdDate,
-        response: null,
-        respondedAt: null,
-        fetchedAt: now,
-      })
-    }
-
-    await batch.commit()
   }
 }
 
@@ -1032,7 +1691,7 @@ export async function getStripeMetrics(
     }
 
     // Query metrics
-    let query = db
+    const query = db
       .collection(COLLECTIONS.STRIPE_METRICS)
       .where('integrationId', '==', integrationId)
       .orderBy('period', 'desc')
@@ -1151,44 +1810,101 @@ export async function getGitHubCommits(
       }
     }
 
-    const db = adminDb()
+    const { credentials, config } = await getGitHubIntegrationContext(
+      integrationId,
+      orgContext.organization.id
+    )
 
-    // Verify integration belongs to org
-    const integrationDoc = await db
-      .collection(COLLECTIONS.INTEGRATIONS)
-      .doc(integrationId)
-      .get()
-
-    if (!integrationDoc.exists) {
-      return {
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Integration not found' },
-      }
+    interface GitHubUser {
+      login: string
     }
 
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
-      return {
-        success: false,
-        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+    interface GitHubCommitListItem {
+      sha: string
+      commit: {
+        message: string
+        author?: {
+          name?: string
+          email?: string
+          date?: string
+        }
       }
+      author?: {
+        login?: string
+        avatar_url?: string
+      } | null
+      repository?: string
     }
 
-    const snapshot = await db
-      .collection(COLLECTIONS.GITHUB_COMMITS)
-      .where('integrationId', '==', integrationId)
-      .orderBy('committedAt', 'desc')
-      .limit(limit)
-      .get()
-
-    const commits = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        ...data,
-        id: doc.id,
-        committedAt: data.committedAt?.toDate?.()?.toISOString() || data.committedAt,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
+    interface GitHubCommitDetail {
+      stats?: {
+        additions?: number
+        deletions?: number
+        total?: number
       }
-    }) as GitHubCommit[]
+      files?: Array<unknown>
+    }
+
+    const user = await githubRequest<GitHubUser>(credentials.accessToken!, '/user')
+    const repositories = await resolveGitHubRepositories(
+      credentials.accessToken!,
+      config.githubRepo,
+      user.login
+    )
+
+    if (repositories.length === 0) {
+      return { success: true, data: [] }
+    }
+
+    const perRepoLimit = Math.max(10, Math.ceil(limit / repositories.length) * 2)
+    const commitLists = await Promise.all(
+      repositories.map(async (repository) => {
+        const commits = await githubRequest<GitHubCommitListItem[]>(
+          credentials.accessToken!,
+          `/repos/${repository}/commits?per_page=${perRepoLimit}`
+        )
+
+        return commits.map((commit) => ({ ...commit, repository }))
+      })
+    )
+
+    const flattened = commitLists
+      .flat()
+      .sort((a, b) => {
+        const aDate = new Date(a.commit.author?.date || 0).getTime()
+        const bDate = new Date(b.commit.author?.date || 0).getTime()
+        return bDate - aDate
+      })
+      .slice(0, limit)
+
+    const detailEntries = await Promise.all(
+      flattened.map(async (commit) => {
+        const details = await githubRequest<GitHubCommitDetail>(
+          credentials.accessToken!,
+          `/repos/${commit.repository}/commits/${commit.sha}`
+        )
+
+        return { commit, details }
+      })
+    )
+
+    const now = new Date().toISOString()
+    const commits: GitHubCommit[] = detailEntries.map(({ commit, details }) => ({
+      id: commit.sha,
+      orgId: orgContext.organization.id,
+      integrationId,
+      externalId: commit.sha,
+      message: commit.commit.message,
+      authorName: commit.author?.login || commit.commit.author?.name || 'Unknown',
+      authorEmail: commit.commit.author?.email,
+      authorAvatar: commit.author?.avatar_url,
+      repository: commit.repository || config.githubRepo || 'unknown',
+      filesChanged: details.files?.length,
+      additions: details.stats?.additions,
+      deletions: details.stats?.deletions,
+      committedAt: commit.commit.author?.date || now,
+      fetchedAt: now,
+    }))
 
     return { success: true, data: commits }
   } catch (error) {
@@ -1216,46 +1932,112 @@ export async function getGitHubPullRequests(
       }
     }
 
-    const db = adminDb()
+    const { credentials, config } = await getGitHubIntegrationContext(
+      integrationId,
+      orgContext.organization.id
+    )
 
-    // Verify integration belongs to org
-    const integrationDoc = await db
-      .collection(COLLECTIONS.INTEGRATIONS)
-      .doc(integrationId)
-      .get()
-
-    if (!integrationDoc.exists) {
-      return {
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Integration not found' },
-      }
+    interface GitHubUser {
+      login: string
     }
 
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
-      return {
-        success: false,
-        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+    interface GitHubPullRequestListItem {
+      number: number
+      title: string
+      body?: string | null
+      state: 'open' | 'closed'
+      created_at: string
+      closed_at?: string | null
+      merged_at?: string | null
+      comments: number
+      user: {
+        login: string
+        avatar_url?: string
       }
+      head: {
+        ref: string
+      }
+      base: {
+        ref: string
+      }
+      repository?: string
     }
 
-    const snapshot = await db
-      .collection(COLLECTIONS.GITHUB_PULL_REQUESTS)
-      .where('integrationId', '==', integrationId)
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .get()
+    interface GitHubPullRequestDetail {
+      additions?: number
+      deletions?: number
+      commits?: number
+      comments?: number
+      merged_at?: string | null
+      closed_at?: string | null
+    }
 
-    const prs = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        ...data,
-        id: doc.id,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-        mergedAt: data.mergedAt?.toDate?.()?.toISOString() || data.mergedAt,
-        closedAt: data.closedAt?.toDate?.()?.toISOString() || data.closedAt,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
-      }
-    }) as GitHubPullRequest[]
+    const user = await githubRequest<GitHubUser>(credentials.accessToken!, '/user')
+    const repositories = await resolveGitHubRepositories(
+      credentials.accessToken!,
+      config.githubRepo,
+      user.login
+    )
+
+    if (repositories.length === 0) {
+      return { success: true, data: [] }
+    }
+
+    const perRepoLimit = Math.max(10, Math.ceil(limit / repositories.length) * 2)
+    const prLists = await Promise.all(
+      repositories.map(async (repository) => {
+        const prs = await githubRequest<GitHubPullRequestListItem[]>(
+          credentials.accessToken!,
+          `/repos/${repository}/pulls?state=all&sort=updated&direction=desc&per_page=${perRepoLimit}`
+        )
+
+        return prs.map((pr) => ({ ...pr, repository }))
+      })
+    )
+
+    const flattened = prLists
+      .flat()
+      .sort((a, b) => {
+        const aDate = new Date(a.merged_at || a.closed_at || a.created_at).getTime()
+        const bDate = new Date(b.merged_at || b.closed_at || b.created_at).getTime()
+        return bDate - aDate
+      })
+      .slice(0, limit)
+
+    const detailEntries = await Promise.all(
+      flattened.map(async (pr) => {
+        const details = await githubRequest<GitHubPullRequestDetail>(
+          credentials.accessToken!,
+          `/repos/${pr.repository}/pulls/${pr.number}`
+        )
+
+        return { pr, details }
+      })
+    )
+
+    const now = new Date().toISOString()
+    const prs: GitHubPullRequest[] = detailEntries.map(({ pr, details }) => ({
+      id: `${pr.repository}#${pr.number}`,
+      orgId: orgContext.organization.id,
+      integrationId,
+      externalId: String(pr.number),
+      title: pr.title,
+      body: pr.body || undefined,
+      state: details.merged_at ? 'merged' : pr.state,
+      authorName: pr.user.login,
+      authorAvatar: pr.user.avatar_url,
+      repository: pr.repository || config.githubRepo || 'unknown',
+      headBranch: pr.head.ref,
+      baseBranch: pr.base.ref,
+      commits: details.commits,
+      additions: details.additions,
+      deletions: details.deletions,
+      comments: details.comments ?? pr.comments,
+      createdAt: pr.created_at,
+      mergedAt: details.merged_at || undefined,
+      closedAt: details.closed_at || pr.closed_at || undefined,
+      fetchedAt: now,
+    }))
 
     return { success: true, data: prs }
   } catch (error) {
@@ -1424,52 +2206,55 @@ export async function getGoogleAnalyticsMetrics(
       }
     }
 
-    const db = adminDb()
+    const { accessToken, propertyId } = await getGoogleAnalyticsIntegrationContext(
+      integrationId,
+      orgContext.organization.id
+    )
+    const report = await runGoogleAnalyticsReport(accessToken, propertyId, {
+      dateRanges: [
+        {
+          startDate: startDate || '30daysAgo',
+          endDate: endDate || 'today',
+        },
+      ],
+      dimensions: [{ name: 'date' }],
+      metrics: [
+        { name: 'sessions' },
+        { name: 'totalUsers' },
+        { name: 'newUsers' },
+        { name: 'screenPageViews' },
+        { name: 'bounceRate' },
+        { name: 'averageSessionDuration' },
+      ],
+      orderBys: [{ dimension: { dimensionName: 'date' } }],
+      limit: 10000,
+    })
 
-    // Verify integration belongs to org
-    const integrationDoc = await db
-      .collection(COLLECTIONS.INTEGRATIONS)
-      .doc(integrationId)
-      .get()
+    const now = new Date().toISOString()
+    const metrics: GoogleAnalyticsMetrics[] = (report.rows || []).map((row) => {
+      const rawDate = row.dimensionValues?.[0]?.value || ''
+      const period = rawDate.length === 8
+        ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`
+        : rawDate
 
-    if (!integrationDoc.exists) {
       return {
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Integration not found' },
+        id: `${integrationId}_${period}`,
+        orgId: orgContext.organization.id,
+        integrationId,
+        period,
+        sessions: parseGoogleAnalyticsNumber(row.metricValues?.[0]?.value),
+        users: parseGoogleAnalyticsNumber(row.metricValues?.[1]?.value),
+        newUsers: parseGoogleAnalyticsNumber(row.metricValues?.[2]?.value),
+        pageviews: parseGoogleAnalyticsNumber(row.metricValues?.[3]?.value),
+        bounceRate: normalizeGoogleAnalyticsPercent(row.metricValues?.[4]?.value),
+        avgSessionDuration: Math.round(parseGoogleAnalyticsNumber(row.metricValues?.[5]?.value)),
+        pagesPerSession: 0,
+        fetchedAt: now,
       }
-    }
-
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
-      return {
-        success: false,
-        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
-      }
-    }
-
-    // Query metrics
-    let query = db
-      .collection(COLLECTIONS.GOOGLE_ANALYTICS_METRICS)
-      .where('integrationId', '==', integrationId)
-      .orderBy('period', 'desc')
-
-    const snapshot = await query.get()
-
-    let metrics = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        ...data,
-        id: doc.id,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
-      }
-    }) as GoogleAnalyticsMetrics[]
-
-    // Apply date filters in memory if provided
-    if (startDate) {
-      metrics = metrics.filter((m) => m.period >= startDate)
-    }
-    if (endDate) {
-      metrics = metrics.filter((m) => m.period <= endDate)
-    }
+    }).map((metric) => ({
+      ...metric,
+      pagesPerSession: metric.sessions > 0 ? metric.pageviews / metric.sessions : 0,
+    }))
 
     return { success: true, data: metrics }
   } catch (error) {
@@ -1486,7 +2271,9 @@ export async function getGoogleAnalyticsMetrics(
  */
 export async function getGoogleAnalyticsPages(
   integrationId: string,
-  limit = 50
+  limit = 50,
+  startDate?: string,
+  endDate?: string
 ): Promise<ApiResponse<GoogleAnalyticsPageView[]>> {
   try {
     const orgContext = await getOrgContext()
@@ -1497,43 +2284,37 @@ export async function getGoogleAnalyticsPages(
       }
     }
 
-    const db = adminDb()
+    const { accessToken, propertyId } = await getGoogleAnalyticsIntegrationContext(
+      integrationId,
+      orgContext.organization.id
+    )
+    const report = await runGoogleAnalyticsReport(accessToken, propertyId, {
+      dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
+      dimensions: [{ name: 'pagePath' }, { name: 'pageTitle' }],
+      metrics: [
+        { name: 'screenPageViews' },
+        { name: 'totalUsers' },
+        { name: 'averageSessionDuration' },
+        { name: 'bounceRate' },
+      ],
+      orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+      limit,
+    })
 
-    // Verify integration belongs to org
-    const integrationDoc = await db
-      .collection(COLLECTIONS.INTEGRATIONS)
-      .doc(integrationId)
-      .get()
-
-    if (!integrationDoc.exists) {
-      return {
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Integration not found' },
-      }
-    }
-
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
-      return {
-        success: false,
-        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
-      }
-    }
-
-    const snapshot = await db
-      .collection(COLLECTIONS.GOOGLE_ANALYTICS_PAGES)
-      .where('integrationId', '==', integrationId)
-      .orderBy('pageviews', 'desc')
-      .limit(limit)
-      .get()
-
-    const pages = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        ...data,
-        id: doc.id,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
-      }
-    }) as GoogleAnalyticsPageView[]
+    const now = new Date().toISOString()
+    const pages: GoogleAnalyticsPageView[] = (report.rows || []).map((row, index) => ({
+      id: `${integrationId}_page_${index}`,
+      orgId: orgContext.organization.id,
+      integrationId,
+      period: now.split('T')[0],
+      pagePath: row.dimensionValues?.[0]?.value || '/',
+      pageTitle: row.dimensionValues?.[1]?.value || row.dimensionValues?.[0]?.value || '/',
+      pageviews: parseGoogleAnalyticsNumber(row.metricValues?.[0]?.value),
+      uniquePageviews: parseGoogleAnalyticsNumber(row.metricValues?.[1]?.value),
+      avgTimeOnPage: Math.round(parseGoogleAnalyticsNumber(row.metricValues?.[2]?.value)),
+      bounceRate: normalizeGoogleAnalyticsPercent(row.metricValues?.[3]?.value),
+      fetchedAt: now,
+    }))
 
     return { success: true, data: pages }
   } catch (error) {
@@ -1550,7 +2331,9 @@ export async function getGoogleAnalyticsPages(
  */
 export async function getGoogleAnalyticsSources(
   integrationId: string,
-  limit = 20
+  limit = 20,
+  startDate?: string,
+  endDate?: string
 ): Promise<ApiResponse<GoogleAnalyticsTrafficSource[]>> {
   try {
     const orgContext = await getOrgContext()
@@ -1561,43 +2344,36 @@ export async function getGoogleAnalyticsSources(
       }
     }
 
-    const db = adminDb()
+    const { accessToken, propertyId } = await getGoogleAnalyticsIntegrationContext(
+      integrationId,
+      orgContext.organization.id
+    )
+    const report = await runGoogleAnalyticsReport(accessToken, propertyId, {
+      dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
+      dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+      metrics: [
+        { name: 'sessions' },
+        { name: 'totalUsers' },
+        { name: 'bounceRate' },
+      ],
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+      limit,
+    })
 
-    // Verify integration belongs to org
-    const integrationDoc = await db
-      .collection(COLLECTIONS.INTEGRATIONS)
-      .doc(integrationId)
-      .get()
-
-    if (!integrationDoc.exists) {
-      return {
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Integration not found' },
-      }
-    }
-
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
-      return {
-        success: false,
-        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
-      }
-    }
-
-    const snapshot = await db
-      .collection(COLLECTIONS.GOOGLE_ANALYTICS_SOURCES)
-      .where('integrationId', '==', integrationId)
-      .orderBy('sessions', 'desc')
-      .limit(limit)
-      .get()
-
-    const sources = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        ...data,
-        id: doc.id,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
-      }
-    }) as GoogleAnalyticsTrafficSource[]
+    const now = new Date().toISOString()
+    const sources: GoogleAnalyticsTrafficSource[] = (report.rows || []).map((row, index) => ({
+      id: `${integrationId}_source_${index}`,
+      orgId: orgContext.organization.id,
+      integrationId,
+      period: now.split('T')[0],
+      source: row.dimensionValues?.[0]?.value || '(direct)',
+      medium: row.dimensionValues?.[1]?.value || '(none)',
+      sessions: parseGoogleAnalyticsNumber(row.metricValues?.[0]?.value),
+      users: parseGoogleAnalyticsNumber(row.metricValues?.[1]?.value),
+      bounceRate: normalizeGoogleAnalyticsPercent(row.metricValues?.[2]?.value),
+      conversionRate: 0,
+      fetchedAt: now,
+    }))
 
     return { success: true, data: sources }
   } catch (error) {
@@ -1610,16 +2386,16 @@ export async function getGoogleAnalyticsSources(
 }
 
 // ========================================
-// MIXPANEL DATA
+// POSTHOG DATA
 // ========================================
 
 /**
- * Get Mixpanel events for an integration.
+ * Get PostHog events for an integration.
  */
-export async function getMixpanelEvents(
+export async function getPostHogEvents(
   integrationId: string,
   limit = 50
-): Promise<ApiResponse<MixpanelEvent[]>> {
+): Promise<ApiResponse<PostHogEvent[]>> {
   try {
     const orgContext = await getOrgContext()
     if (!orgContext) {
@@ -1629,60 +2405,58 @@ export async function getMixpanelEvents(
       }
     }
 
-    const db = adminDb()
+    const context = await getPostHogIntegrationContext(integrationId, orgContext.organization.id)
+    const safeLimit = Math.max(1, Math.min(limit, 100))
+    const rows = await runPostHogHogQLQuery(
+      context.host,
+      context.projectId,
+      context.credentials.apiKey!,
+      `
+        SELECT
+          event AS name,
+          count() AS eventCount,
+          uniq(person_id) AS uniqueUsers,
+          toString(toDate(max(timestamp))) AS period
+        FROM events
+        WHERE timestamp >= now() - INTERVAL 30 DAY
+        GROUP BY event
+        ORDER BY eventCount DESC
+        LIMIT ${safeLimit}
+      `
+    )
 
-    // Verify integration belongs to org
-    const integrationDoc = await db
-      .collection(COLLECTIONS.INTEGRATIONS)
-      .doc(integrationId)
-      .get()
-
-    if (!integrationDoc.exists) {
-      return {
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Integration not found' },
-      }
-    }
-
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
-      return {
-        success: false,
-        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
-      }
-    }
-
-    const snapshot = await db
-      .collection(COLLECTIONS.MIXPANEL_EVENTS)
-      .where('integrationId', '==', integrationId)
-      .orderBy('eventCount', 'desc')
-      .limit(limit)
-      .get()
-
-    const events = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        ...data,
-        id: doc.id,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
-      }
-    }) as MixpanelEvent[]
+    const fetchedAt = new Date().toISOString()
+    const events = rows.map((row, index) => ({
+      id: `${integrationId}-${String(row.name || `event-${index}`)}`,
+      orgId: orgContext.organization.id,
+      integrationId,
+      name: String(row.name || 'Unknown Event'),
+      eventCount: parsePostHogNumber(row.eventCount),
+      uniqueUsers: parsePostHogNumber(row.uniqueUsers),
+      period: String(row.period || fetchedAt.slice(0, 10)),
+      fetchedAt,
+    }))
 
     return { success: true, data: events }
   } catch (error) {
-    console.error('Get Mixpanel events error:', error)
+    console.error('Get PostHog events error:', error)
+    const message = error instanceof Error ? error.message : 'Failed to fetch PostHog events'
     return {
       success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Mixpanel events' },
+      error: { code: 'INTERNAL_ERROR', message },
     }
   }
 }
 
 /**
- * Get Mixpanel funnels for an integration.
+ * Get PostHog funnels for an integration.
+ *
+ * Founderboard does not infer funnels from raw event volume because that would
+ * misrepresent user progression. Funnel insights require explicit configuration.
  */
-export async function getMixpanelFunnels(
+export async function getPostHogFunnels(
   integrationId: string
-): Promise<ApiResponse<MixpanelFunnel[]>> {
+): Promise<ApiResponse<PostHogFunnel[]>> {
   try {
     const orgContext = await getOrgContext()
     if (!orgContext) {
@@ -1692,59 +2466,25 @@ export async function getMixpanelFunnels(
       }
     }
 
-    const db = adminDb()
+    await getPostHogIntegrationContext(integrationId, orgContext.organization.id)
 
-    // Verify integration belongs to org
-    const integrationDoc = await db
-      .collection(COLLECTIONS.INTEGRATIONS)
-      .doc(integrationId)
-      .get()
-
-    if (!integrationDoc.exists) {
-      return {
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Integration not found' },
-      }
-    }
-
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
-      return {
-        success: false,
-        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
-      }
-    }
-
-    const snapshot = await db
-      .collection(COLLECTIONS.MIXPANEL_FUNNELS)
-      .where('integrationId', '==', integrationId)
-      .orderBy('conversionRate', 'desc')
-      .get()
-
-    const funnels = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        ...data,
-        id: doc.id,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
-      }
-    }) as MixpanelFunnel[]
-
-    return { success: true, data: funnels }
+    return { success: true, data: [] }
   } catch (error) {
-    console.error('Get Mixpanel funnels error:', error)
+    console.error('Get PostHog funnels error:', error)
+    const message = error instanceof Error ? error.message : 'Failed to fetch PostHog funnels'
     return {
       success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Mixpanel funnels' },
+      error: { code: 'INTERNAL_ERROR', message },
     }
   }
 }
 
 /**
- * Get Mixpanel retention data for an integration.
+ * Get PostHog retention data for an integration.
  */
-export async function getMixpanelRetention(
+export async function getPostHogRetention(
   integrationId: string
-): Promise<ApiResponse<MixpanelRetention[]>> {
+): Promise<ApiResponse<PostHogRetention[]>> {
   try {
     const orgContext = await getOrgContext()
     if (!orgContext) {
@@ -1754,50 +2494,92 @@ export async function getMixpanelRetention(
       }
     }
 
-    const db = adminDb()
+    const context = await getPostHogIntegrationContext(integrationId, orgContext.organization.id)
+    const rows = await runPostHogHogQLQuery(
+      context.host,
+      context.projectId,
+      context.credentials.apiKey!,
+      `
+        WITH person_first_seen AS (
+          SELECT
+            person_id,
+            toDate(min(timestamp)) AS cohortDate
+          FROM events
+          WHERE person_id IS NOT NULL
+            AND timestamp >= now() - INTERVAL 120 DAY
+          GROUP BY person_id
+        ),
+        person_activity AS (
+          SELECT
+            person_id,
+            toDate(timestamp) AS activityDate
+          FROM events
+          WHERE person_id IS NOT NULL
+            AND timestamp >= now() - INTERVAL 120 DAY
+          GROUP BY person_id, activityDate
+        )
+        SELECT
+          toString(person_first_seen.cohortDate) AS cohortDate,
+          uniqExact(person_first_seen.person_id) AS day0Users,
+          round(
+            100.0 * uniqExactIf(
+              person_first_seen.person_id,
+              dateDiff('day', person_first_seen.cohortDate, person_activity.activityDate) = 1
+            ) / nullIf(uniqExact(person_first_seen.person_id), 0),
+            1
+          ) AS day1,
+          round(
+            100.0 * uniqExactIf(
+              person_first_seen.person_id,
+              dateDiff('day', person_first_seen.cohortDate, person_activity.activityDate) = 7
+            ) / nullIf(uniqExact(person_first_seen.person_id), 0),
+            1
+          ) AS day7,
+          round(
+            100.0 * uniqExactIf(
+              person_first_seen.person_id,
+              dateDiff('day', person_first_seen.cohortDate, person_activity.activityDate) = 14
+            ) / nullIf(uniqExact(person_first_seen.person_id), 0),
+            1
+          ) AS day14,
+          round(
+            100.0 * uniqExactIf(
+              person_first_seen.person_id,
+              dateDiff('day', person_first_seen.cohortDate, person_activity.activityDate) = 30
+            ) / nullIf(uniqExact(person_first_seen.person_id), 0),
+            1
+          ) AS day30
+        FROM person_first_seen
+        LEFT JOIN person_activity
+          ON person_first_seen.person_id = person_activity.person_id
+        WHERE person_first_seen.cohortDate >= today() - INTERVAL 84 DAY
+        GROUP BY person_first_seen.cohortDate
+        ORDER BY person_first_seen.cohortDate DESC
+        LIMIT 12
+      `
+    )
 
-    // Verify integration belongs to org
-    const integrationDoc = await db
-      .collection(COLLECTIONS.INTEGRATIONS)
-      .doc(integrationId)
-      .get()
-
-    if (!integrationDoc.exists) {
-      return {
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Integration not found' },
-      }
-    }
-
-    if (integrationDoc.data()!.orgId !== orgContext.organization.id) {
-      return {
-        success: false,
-        error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
-      }
-    }
-
-    const snapshot = await db
-      .collection(COLLECTIONS.MIXPANEL_RETENTION)
-      .where('integrationId', '==', integrationId)
-      .orderBy('cohortDate', 'desc')
-      .limit(12)
-      .get()
-
-    const retention = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        ...data,
-        id: doc.id,
-        fetchedAt: data.fetchedAt?.toDate?.()?.toISOString() || data.fetchedAt,
-      }
-    }) as MixpanelRetention[]
+    const fetchedAt = new Date().toISOString()
+    const retention = rows.map((row, index) => ({
+      id: `${integrationId}-retention-${String(row.cohortDate || index)}`,
+      orgId: orgContext.organization.id,
+      integrationId,
+      cohortDate: String(row.cohortDate || fetchedAt.slice(0, 10)),
+      day0Users: parsePostHogNumber(row.day0Users),
+      day1: parsePostHogNumber(row.day1),
+      day7: parsePostHogNumber(row.day7),
+      day14: parsePostHogNumber(row.day14),
+      day30: parsePostHogNumber(row.day30),
+      fetchedAt,
+    }))
 
     return { success: true, data: retention }
   } catch (error) {
-    console.error('Get Mixpanel retention error:', error)
+    console.error('Get PostHog retention error:', error)
+    const message = error instanceof Error ? error.message : 'Failed to fetch PostHog retention'
     return {
       success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Mixpanel retention' },
+      error: { code: 'INTERNAL_ERROR', message },
     }
   }
 }
