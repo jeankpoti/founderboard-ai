@@ -33,7 +33,7 @@ interface NavigationItem {
 interface SidebarProps {
   currentOrg: Organization
   organizations: Organization[]
-  userEmail: string
+  userEmail: string | null
   navigationItems: NavigationItem[]
 }
 
@@ -174,7 +174,7 @@ export function Sidebar({
         )}
       >
         {/* Email (hidden when collapsed) */}
-        {!isCollapsed && (
+        {!isCollapsed && userEmail && (
           <p className="text-xs text-muted-foreground px-2 truncate">
             {userEmail}
           </p>

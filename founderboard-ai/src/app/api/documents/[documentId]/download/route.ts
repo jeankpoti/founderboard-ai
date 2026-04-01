@@ -76,7 +76,7 @@ export async function GET(
     const requestedDisposition = request.nextUrl.searchParams.get('disposition')
     const disposition = requestedDisposition === 'inline' ? 'inline' : 'attachment'
 
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(new Uint8Array(fileBuffer), {
       headers: {
         'Content-Type': document.mimeType || 'application/octet-stream',
         'Content-Length': String(fileBuffer.length),
