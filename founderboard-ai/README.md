@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Founderboard AI
 
-## Getting Started
+Founderboard AI is a founder operating system built with Next.js, Firebase, and OpenAI. It combines company planning, documents, investor tracking, analytics, integrations, and AI workflows in a single dashboard.
 
-First, run the development server:
+![Founderboard dashboard screenshot](screenshots/founderboard-ai/FounderBoard-dashboard.png)
+
+## What it includes
+
+- Dashboard and organization workspace
+- AI Studio for guided founder workflows
+- App Analytics, Website Analytics, Product Analytics, Revenue, and Dev Insights
+- Investor pipeline and fundraising tracking
+- Documents, notes, templates, roadmap, calendar, tasks, OKRs, and activity
+- Live third-party integrations including App Store Connect, GitHub, Google Analytics, Stripe, Slack, Notion, Linear, Intercom, and PostHog
+
+## Stack
+
+- Next.js 16
+- React 19
+- TypeScript
+- Firebase Auth, Firestore, and Storage
+- Firebase Admin SDK
+- Tailwind CSS 4
+- Radix UI primitives
+- OpenAI SDK
+- Upstash Redis
+
+## Getting started
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Copy the example environment file and fill in your credentials:
+
+```bash
+cp .env.example .env.local
+```
+
+3. Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The project expects these groups of variables in `.env.local`:
 
-## Learn More
+- Firebase client:
+  - `NEXT_PUBLIC_FIREBASE_API_KEY`
+  - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+  - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+  - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+  - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+  - `NEXT_PUBLIC_FIREBASE_APP_ID`
+- Firebase admin:
+  - `FIREBASE_ADMIN_PROJECT_ID`
+  - `FIREBASE_ADMIN_CLIENT_EMAIL`
+  - `FIREBASE_ADMIN_PRIVATE_KEY`
+  - `FIREBASE_STORAGE_BUCKET` optional, but recommended for server-side Storage access
+- AI:
+  - `OPENAI_API_KEY`
+- Rate limiting:
+  - `UPSTASH_REDIS_REST_URL`
+  - `UPSTASH_REDIS_REST_TOKEN`
 
-To learn more about Next.js, take a look at the following resources:
+See [.env.example](./.env.example) for the current template.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Available scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run dev
+npm run build
+npm run start
+npm run lint
+```
 
-## Deploy on Vercel
+## Project structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```text
+src/app                    App Router pages and layouts
+src/components/features    Product feature UIs
+src/components/ui          Shared UI primitives
+src/lib/actions            Server actions
+src/lib/firebase           Firebase client and admin setup
+src/types                  Shared schemas and domain types
+public                     Static assets
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Notes
+
+- Documents upload to Firebase Storage and store metadata in Firestore.
+- Several analytics surfaces now fetch live provider data instead of relying on Firestore snapshots.
+- Product Analytics uses PostHog.
+
+## License
+
+[MIT](./LICENSE)

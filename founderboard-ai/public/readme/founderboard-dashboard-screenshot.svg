@@ -1,0 +1,88 @@
+<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="900" rx="28" fill="#0A0A0B"/>
+  <rect x="18" y="18" width="1404" height="864" rx="24" fill="#111112" stroke="#242427"/>
+  <rect x="42" y="42" width="260" height="816" rx="20" fill="#141415" stroke="#26262A"/>
+  <rect x="332" y="42" width="1066" height="72" rx="20" fill="#121214" stroke="#26262A"/>
+  <rect x="332" y="134" width="1066" height="700" rx="22" fill="#0D0D0E" stroke="#202024"/>
+
+  <text x="72" y="88" fill="#F5F5F5" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">jk studio</text>
+  <text x="368" y="86" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">Founderboard</text>
+  <text x="1210" y="86" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="22">kpotistar@gmail.com</text>
+
+  <rect x="68" y="134" width="208" height="46" rx="14" fill="#212125"/>
+  <rect x="68" y="192" width="208" height="46" rx="14" fill="#17171A"/>
+  <rect x="68" y="312" width="208" height="46" rx="14" fill="#17171A"/>
+  <rect x="68" y="370" width="208" height="46" rx="14" fill="#17171A"/>
+  <rect x="68" y="428" width="208" height="46" rx="14" fill="#2E1D16"/>
+  <rect x="68" y="486" width="208" height="46" rx="14" fill="#17171A"/>
+  <rect x="68" y="544" width="208" height="46" rx="14" fill="#17171A"/>
+
+  <circle cx="92" cy="157" r="8" fill="#F5F5F5"/>
+  <circle cx="92" cy="215" r="8" fill="#A1A1AA"/>
+  <circle cx="92" cy="335" r="8" fill="#A1A1AA"/>
+  <circle cx="92" cy="393" r="8" fill="#A1A1AA"/>
+  <circle cx="92" cy="451" r="8" fill="#F59E0B"/>
+  <circle cx="92" cy="509" r="8" fill="#A1A1AA"/>
+  <circle cx="92" cy="567" r="8" fill="#A1A1AA"/>
+
+  <text x="112" y="164" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="600">Dashboard</text>
+  <text x="112" y="222" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="24">AI Studio</text>
+  <text x="112" y="342" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="24">App Analytics</text>
+  <text x="112" y="400" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="24">Revenue</text>
+  <text x="112" y="458" fill="#FDE68A" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="600">Dev Insights</text>
+  <text x="112" y="516" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="24">Documents</text>
+  <text x="112" y="574" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="24">Roadmap</text>
+
+  <text x="370" y="180" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="700">Dev Insights</text>
+  <text x="370" y="220" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="26">Track commits, pull requests, and product signals in one workspace.</text>
+
+  <rect x="370" y="266" width="172" height="52" rx="20" fill="#0F172A" stroke="#1D4ED8"/>
+  <circle cx="398" cy="292" r="12" fill="#2563EB"/>
+  <text x="422" y="300" fill="#DBEAFE" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700">GitHub</text>
+  <rect x="550" y="274" width="90" height="36" rx="18" fill="#052E1A"/>
+  <text x="573" y="299" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">active</text>
+
+  <rect x="1212" y="266" width="150" height="52" rx="18" fill="#17171A" stroke="#313135"/>
+  <text x="1249" y="300" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700">Sync Now</text>
+
+  <rect x="370" y="348" width="240" height="180" rx="24" fill="#18181B" stroke="#303036"/>
+  <rect x="628" y="348" width="240" height="180" rx="24" fill="#18181B" stroke="#303036"/>
+  <rect x="886" y="348" width="240" height="180" rx="24" fill="#18181B" stroke="#303036"/>
+  <rect x="1144" y="348" width="218" height="180" rx="24" fill="#18181B" stroke="#303036"/>
+
+  <text x="400" y="402" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="24">Commits</text>
+  <text x="658" y="402" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="24">Pull Requests</text>
+  <text x="916" y="402" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="24">Merge Rate</text>
+  <text x="1174" y="402" fill="#A1A1AA" font-family="Arial, Helvetica, sans-serif" font-size="24">Velocity</text>
+
+  <text x="400" y="458" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700">128</text>
+  <text x="658" y="458" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700">34</text>
+  <text x="916" y="458" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700">86%</text>
+  <text x="1174" y="458" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700">17</text>
+
+  <text x="400" y="500" fill="#71717A" font-family="Arial, Helvetica, sans-serif" font-size="22">Last 30 days</text>
+  <text x="658" y="500" fill="#71717A" font-family="Arial, Helvetica, sans-serif" font-size="22">Open + merged</text>
+  <text x="916" y="500" fill="#71717A" font-family="Arial, Helvetica, sans-serif" font-size="22">Across active repos</text>
+  <text x="1174" y="500" fill="#71717A" font-family="Arial, Helvetica, sans-serif" font-size="22">Weekly throughput</text>
+
+  <rect x="370" y="556" width="992" height="238" rx="26" fill="#18181B" stroke="#303036"/>
+  <text x="400" y="606" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">Recent Activity</text>
+
+  <path d="M430 733C490 700 530 616 593 610C657 604 694 673 747 678C822 685 851 577 927 567C993 558 1036 624 1088 651C1140 677 1195 668 1302 622" stroke="#A855F7" stroke-width="8" stroke-linecap="round"/>
+  <path d="M430 733C490 700 530 616 593 610C657 604 694 673 747 678C822 685 851 577 927 567C993 558 1036 624 1088 651C1140 677 1195 668 1302 622V794H430V733Z" fill="url(#paint0_linear)" fill-opacity="0.18"/>
+
+  <rect x="426" y="642" width="112" height="12" rx="6" fill="#27272A"/>
+  <rect x="558" y="642" width="96" height="12" rx="6" fill="#27272A"/>
+  <rect x="674" y="642" width="88" height="12" rx="6" fill="#27272A"/>
+  <rect x="782" y="642" width="104" height="12" rx="6" fill="#27272A"/>
+  <rect x="906" y="642" width="92" height="12" rx="6" fill="#27272A"/>
+  <rect x="1018" y="642" width="102" height="12" rx="6" fill="#27272A"/>
+  <rect x="1140" y="642" width="96" height="12" rx="6" fill="#27272A"/>
+
+  <defs>
+    <linearGradient id="paint0_linear" x1="866" y1="567" x2="866" y2="794" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#A855F7" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
