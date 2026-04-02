@@ -2,7 +2,7 @@
 
 Founderboard AI is a founder operating system built with Next.js, Firebase, and OpenAI. It combines company planning, documents, investor tracking, analytics, integrations, and AI workflows in a single dashboard.
 
-![Founderboard dashboard screenshot](screenshots/FounderBoard-dashboard.png)
+![Founderboard dashboard screenshot](screenshots/founderboard-ai/FounderBoard-dashboard.png)
 
 ## What it includes
 
