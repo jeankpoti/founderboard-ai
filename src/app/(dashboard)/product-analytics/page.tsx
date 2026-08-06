@@ -5,8 +5,6 @@
  */
 
 import { Suspense } from 'react'
-import { verifySession } from '@/lib/auth/session'
-import { redirect } from 'next/navigation'
 import { ProductAnalyticsDashboard } from '@/components/features/product-analytics'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -16,11 +14,7 @@ export const metadata = {
 }
 
 export default async function ProductAnalyticsPage() {
-  const { user } = await verifySession()
-  if (!user) {
-    redirect('/login')
-  }
-
+  // Authentication handled by layout - supports guest mode with mock data
   return (
     <div className="space-y-6">
       <div>

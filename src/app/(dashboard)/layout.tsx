@@ -13,11 +13,12 @@
  * - Great for things like sidebars and headers
  */
 
-import { redirect } from 'next/navigation'
 import { verifySession } from '@/lib/auth/session'
 import { getOrgContext, getUserOrganizations } from '@/lib/auth/org-context'
-import { SignOutButton } from '@/components/features/auth'
-import { Sidebar } from '@/components/features/layout'
+import { getGuestOrgContext, GUEST_USER } from '@/lib/auth/guest-context'
+import { GuestBanner } from '@/components/features/auth'
+import { Sidebar, DashboardHeader } from '@/components/features/layout'
+import { WelcomeDialog } from '@/components/features/welcome'
 
 // ========================================
 // NAVIGATION CONFIGURATION
@@ -210,85 +211,77 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   // ----------------------------------------
-  // AUTHENTICATION
+  // AUTHENTICATION (with Guest Mode Support)
   // ----------------------------------------
 
   // Verify the user's session (checks the auth cookie)
   const { user, error } = await verifySession()
 
-  // If no valid session, redirect to login
-  if (!user) {
-    console.error('Dashboard access denied:', error)
-    redirect('/login')
+  // Determine if this is a guest (unauthenticated) user
+  const isGuest = !user
+  const effectiveUser = user || GUEST_USER
+
+  // For authenticated users, check if they need onboarding
+  const needsOnboarding = !isGuest && (!user.linkedOrgIds || user.linkedOrgIds.length === 0)
+
+  // Get org context:
+  // - Guest users get the demo org context
+  // - Authenticated users get their real org context
+  // - Users needing onboarding get null
+  let orgContext = null
+  let organizations: Awaited<ReturnType<typeof getUserOrganizations>> = []
+
+  if (isGuest) {
+    // Guest mode - use demo organization
+    orgContext = getGuestOrgContext()
+  } else if (!needsOnboarding) {
+    // Authenticated user with organizations
+    orgContext = await getOrgContext()
+    organizations = await getUserOrganizations()
   }
-
-  // Check if user needs to complete onboarding (no organizations yet)
-  const needsOnboarding = !user.linkedOrgIds || user.linkedOrgIds.length === 0
-
-  // Get org context and all user organizations (skip if onboarding needed)
-  const orgContext = needsOnboarding ? null : await getOrgContext()
-  const organizations = needsOnboarding ? [] : await getUserOrganizations()
 
   // ----------------------------------------
   // RENDER
   // ----------------------------------------
 
   return (
-    <div className="min-h-screen flex">
-      {/* ======================================== */}
-      {/* SIDEBAR - hidden during onboarding and on mobile */}
-      {/* ======================================== */}
-      {!needsOnboarding && orgContext && (
-        <Sidebar
-          currentOrg={orgContext.organization}
-          organizations={organizations}
-          userEmail={user.email}
-          navigationItems={navigationItems}
-        />
-      )}
+    <div className="min-h-screen flex flex-col">
+      {/* Guest Banner - shown for unauthenticated users */}
+      {isGuest && <GuestBanner />}
 
-      {/* ======================================== */}
-      {/* MAIN CONTENT AREA */}
-      {/* ======================================== */}
-      <main className="flex-1">
-        {/* Top Header Bar */}
-        <header className="h-14 border-b flex items-center px-6 justify-between">
-          {needsOnboarding ? (
-            <p className="text-sm font-medium">Getting Started</p>
-          ) : (
-            <div className="flex items-center gap-2">
-              {/* Organization Name */}
-              <p className="text-sm font-medium">
-                {orgContext?.organization.name || 'Dashboard'}
-              </p>
-              {/* User's Role Badge */}
-              {orgContext && (
-                <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-muted rounded capitalize">
-                  {orgContext.role}
-                </span>
-              )}
-            </div>
-          )}
+      <div className="flex-1 flex">
+        {/* ======================================== */}
+        {/* SIDEBAR - hidden during onboarding and on mobile */}
+        {/* ======================================== */}
+        {!needsOnboarding && orgContext && (
+          <Sidebar
+            currentOrg={orgContext.organization}
+            organizations={isGuest ? [] : organizations}
+            userEmail={effectiveUser.email}
+            navigationItems={navigationItems}
+          />
+        )}
 
-          {/* Right side of header */}
-          <div className="flex items-center gap-4">
-            {/* Email (hidden on small screens) */}
-            <p className="text-sm text-muted-foreground hidden sm:block">
-              {user.email}
-            </p>
-            {/* Sign out button (shown in header when onboarding or on mobile) */}
-            {needsOnboarding && <SignOutButton variant="ghost" />}
-            {!needsOnboarding && (
-              <div className="md:hidden">
-                <SignOutButton variant="ghost" />
-              </div>
-            )}
-          </div>
-        </header>
+        {/* ======================================== */}
+        {/* MAIN CONTENT AREA */}
+        {/* ======================================== */}
+        <main className="flex-1">
+          {/* Top Header Bar with Info Button */}
+          <DashboardHeader
+            orgName={orgContext?.organization.name || 'Dashboard'}
+            role={orgContext?.role}
+            email={effectiveUser.email}
+            isGuest={isGuest}
+            needsOnboarding={needsOnboarding}
+          />
 
-        {/* Page Content */}
-        <div className="p-6">{children}</div>
-      </main>
+          {/* Page Content */}
+          <div className="p-6">{children}</div>
+        </main>
+      </div>
+
+      {/* Welcome Dialog - auto-shows on first visit */}
+      <WelcomeDialog />
     </div>
   )
 }

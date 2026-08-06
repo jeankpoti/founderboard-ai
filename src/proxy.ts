@@ -6,6 +6,28 @@ const SESSION_COOKIE_NAME = 'session'
 // Routes that don't require authentication
 const PUBLIC_ROUTES = ['/', '/login', '/signup', '/forgot-password']
 
+// Routes that allow guest access (show demo data without authentication)
+const GUEST_ALLOWED_ROUTES = [
+  '/dashboard',
+  '/app-analytics',
+  '/revenue',
+  '/dev-insights',
+  '/website-analytics',
+  '/product-analytics',
+  '/customer-support',
+  '/investors',
+  '/fundraising',
+  '/okrs',
+  '/documents',
+  '/notes',
+  '/templates',
+  '/roadmap',
+  '/calendar',
+  '/tasks',
+  '/activity',
+  '/ai-studio',
+]
+
 // Routes that should redirect to dashboard if already authenticated
 const AUTH_ROUTES = ['/login', '/signup']
 
@@ -29,8 +51,13 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Protected routes (dashboard, etc.) - redirect to login if no session
-  if (pathname.startsWith('/dashboard') || pathname.startsWith('/settings') || pathname.startsWith('/tasks') || pathname.startsWith('/ai-studio')) {
+  // Guest-allowed routes - allow access even without session (show demo data)
+  if (GUEST_ALLOWED_ROUTES.some(route => pathname === route || pathname.startsWith(route + '/'))) {
+    return NextResponse.next()
+  }
+
+  // Protected routes (settings, team, integrations) - require authentication
+  if (pathname.startsWith('/settings') || pathname.startsWith('/team') || pathname.startsWith('/integrations')) {
     if (!hasSession) {
       const loginUrl = new URL('/login', request.url)
       loginUrl.searchParams.set('redirect', pathname)

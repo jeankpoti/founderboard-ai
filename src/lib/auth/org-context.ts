@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { adminDb } from '@/lib/firebase/admin'
 import { COLLECTIONS } from '@/lib/firebase/collections'
 import { verifySession, type SessionUser } from './session'
+import { getGuestOrgContext } from './guest-context'
 import type { Organization, Membership, Role } from '@/types/organization'
 
 const CURRENT_ORG_COOKIE = 'currentOrgId'
@@ -35,12 +36,19 @@ export interface OrgContext {
 
 /**
  * Get the current organization context for the authenticated user.
- * Returns null if user is not authenticated or has no organizations.
+ * Returns guest context for unauthenticated users (recruiter mode).
+ * Returns null only if user is authenticated but has no organizations.
  */
 export async function getOrgContext(): Promise<OrgContext | null> {
   const { user } = await verifySession()
 
-  if (!user || !user.linkedOrgIds || user.linkedOrgIds.length === 0) {
+  // No authenticated user - return guest context for demo access
+  if (!user) {
+    return getGuestOrgContext()
+  }
+
+  // Authenticated user but no organizations - needs onboarding
+  if (!user.linkedOrgIds || user.linkedOrgIds.length === 0) {
     return null
   }
 
