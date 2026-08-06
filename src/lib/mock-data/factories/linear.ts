@@ -92,7 +92,7 @@ export function generateLinearIssues(count: number = 30): LinearIssue[] {
       teamName: TEAM_NAME,
       projectName: randomPick(PROJECTS),
       labels: randomPickMultiple(LABELS, randomBetween(0, 2)),
-      estimate: randomPick([1, 2, 3, 5, 8, null]),
+      estimate: randomPick([1, 2, 3, 5, 8, undefined]),
       createdAt,
       fetchedAt: new Date().toISOString(),
     }

@@ -73,6 +73,19 @@ import {
 } from '@/lib/mock-data/factories'
 
 // ========================================
+// HELPERS
+// ========================================
+
+/**
+ * Convert days number to start date string (YYYY-MM-DD format).
+ */
+function daysToStartDate(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  return date.toISOString().split('T')[0]
+}
+
+// ========================================
 // STRIPE DATA
 // ========================================
 
@@ -217,12 +230,7 @@ export async function getAppStoreMetricsWithMock(
     return { success: true, data: generateAppStoreMetrics(days) }
   }
 
-  // Convert days to start date string
-  const startDate = new Date()
-  startDate.setDate(startDate.getDate() - days)
-  const startDateStr = startDate.toISOString().split('T')[0]
-
-  return getAppStoreMetrics(appStoreIntegrationId, startDateStr)
+  return getAppStoreMetrics(appStoreIntegrationId, daysToStartDate(days))
 }
 
 /**
@@ -296,7 +304,7 @@ export async function getGoogleAnalyticsMetricsWithMock(
     return { success: true, data: generateGoogleAnalyticsMetrics(days) }
   }
 
-  return getGoogleAnalyticsMetrics(gaIntegrationId, days)
+  return getGoogleAnalyticsMetrics(gaIntegrationId, daysToStartDate(days))
 }
 
 /**
@@ -408,7 +416,7 @@ export async function getPostHogRetentionWithMock(
     return { success: true, data: generatePostHogRetention(weeks) }
   }
 
-  return getPostHogRetention(posthogIntegrationId, weeks)
+  return getPostHogRetention(posthogIntegrationId)
 }
 
 // ========================================
@@ -456,7 +464,7 @@ export async function getIntercomMetricsWithMock(
     return { success: true, data: generateIntercomMetrics(days) }
   }
 
-  return getIntercomMetrics(intercomIntegrationId, days)
+  return getIntercomMetrics(intercomIntegrationId)
 }
 
 // ========================================
