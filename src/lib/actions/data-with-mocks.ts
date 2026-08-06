@@ -217,7 +217,12 @@ export async function getAppStoreMetricsWithMock(
     return { success: true, data: generateAppStoreMetrics(days) }
   }
 
-  return getAppStoreMetrics(appStoreIntegrationId, days)
+  // Convert days to start date string
+  const startDate = new Date()
+  startDate.setDate(startDate.getDate() - days)
+  const startDateStr = startDate.toISOString().split('T')[0]
+
+  return getAppStoreMetrics(appStoreIntegrationId, startDateStr)
 }
 
 /**
