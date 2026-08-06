@@ -118,11 +118,11 @@ export function DevInsightsDashboard() {
   const linearConnected = linearIntegration?.status === 'active'
   const isUsingMockData = !githubConnected && !linearConnected
 
-  const tabs = [
-    { id: 'overview' as const, label: 'Overview' },
-    { id: 'commits' as const, label: 'Commits', count: commits.length },
-    { id: 'prs' as const, label: 'Pull Requests', count: pullRequests.length },
-    { id: 'linear' as const, label: 'Linear Issues', count: linearIssues.length },
+  const tabs: Array<{ id: 'overview' | 'commits' | 'prs' | 'linear'; label: string; count?: number; disabled?: boolean }> = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'commits', label: 'Commits', count: commits.length },
+    { id: 'prs', label: 'Pull Requests', count: pullRequests.length },
+    { id: 'linear', label: 'Linear Issues', count: linearIssues.length },
   ]
 
   return (
