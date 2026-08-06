@@ -15,12 +15,11 @@ import { Spinner } from '@/components/ui/spinner'
 import { MetricsOverview } from './MetricsOverview'
 import { ReviewsList } from './ReviewsList'
 import { RatingDistribution } from './RatingDistribution'
+import { getIntegrations, syncIntegration } from '@/lib/actions/integrations'
 import {
-  getIntegrations,
-  getAppStoreMetrics,
-  getAppReviews,
-  syncIntegration,
-} from '@/lib/actions/integrations'
+  getAppStoreMetricsWithMock,
+  getAppReviewsWithMock,
+} from '@/lib/actions/data-with-mocks'
 import type { Integration, AppStoreMetrics, AppReview } from '@/types/integrations'
 import Link from 'next/link'
 
@@ -52,6 +51,7 @@ export function AppAnalyticsDashboard() {
   const [metrics, setMetrics] = useState<AppStoreMetrics[]>([])
   const [reviews, setReviews] = useState<AppReview[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [platform, setPlatform] = useState<Platform>('all')
@@ -59,67 +59,63 @@ export function AppAnalyticsDashboard() {
 
   /**
    * Load integrations and their data.
+   * Data is always loaded - mock data is used when App Store is not connected.
    */
-  const loadData = useCallback(async () => {
-    setIsLoading(true)
+  const loadData = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setIsLoading(true)
+    } else {
+      setIsRefreshing(true)
+    }
     setError(null)
 
     try {
-      // Get all integrations
+      // Get integration status (for UI purposes)
       const intResult = await getIntegrations()
-      if (!intResult.success) {
-        setError(intResult.error.message)
-        return
+      if (intResult.success) {
+        const appStoreIntegrations = intResult.data.filter(
+          (i) => i.type === 'app_store_connect' || i.type === 'google_play'
+        )
+        setIntegrations(appStoreIntegrations)
       }
 
-      // Filter for app store integrations
-      const appStoreIntegrations = intResult.data.filter(
-        (i) => i.type === 'app_store_connect' || i.type === 'google_play'
-      )
-      setIntegrations(appStoreIntegrations)
+      // Calculate days based on date range
+      const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : dateRange === '90d' ? 90 : 30
 
-      // Calculate date range
-      const startDate = getStartDate(dateRange)
-      const endDate = new Date().toISOString().split('T')[0]
+      // Always fetch data - returns mock data if App Store not connected
+      const [metricsResult, reviewsResult] = await Promise.all([
+        getAppStoreMetricsWithMock(days),
+        getAppReviewsWithMock(20),
+      ])
 
-      // Fetch metrics and reviews for each integration
-      const allMetrics: AppStoreMetrics[] = []
-      const allReviews: AppReview[] = []
-
-      for (const integration of appStoreIntegrations) {
-        if (integration.status === 'active') {
-          // Get metrics with date range filter
-          const metricsResult = await getAppStoreMetrics(
-            integration.id,
-            startDate,
-            endDate
-          )
-          if (metricsResult.success) {
-            allMetrics.push(...metricsResult.data)
-          }
-
-          // Get reviews
-          const reviewsResult = await getAppReviews(integration.id)
-          if (reviewsResult.success) {
-            allReviews.push(...reviewsResult.data)
-          }
-        }
+      if (metricsResult.success) {
+        setMetrics(metricsResult.data)
       }
-
-      setMetrics(allMetrics)
-      setReviews(allReviews)
+      if (reviewsResult.success) {
+        setReviews(reviewsResult.data)
+      }
     } catch (err) {
       console.error('Error loading app analytics:', err)
       setError('Failed to load app analytics data.')
     } finally {
       setIsLoading(false)
+      setIsRefreshing(false)
     }
   }, [dateRange])
 
-  // Fetch data on mount and when dateRange changes
+  // Fetch data on mount (initial load)
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    loadData(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Refresh data when date range changes (not initial load)
+  useEffect(() => {
+    if (!isLoading) {
+      loadData(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange])
 
   /**
    * Trigger sync for all app store integrations.
@@ -168,39 +164,45 @@ export function AppAnalyticsDashboard() {
     )
   }
 
-  // No integrations connected
-  if (integrations.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="text-center space-y-4">
-            <div className="text-5xl">📱</div>
-            <h3 className="text-lg font-semibold">No App Store Integrations</h3>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Connect App Store Connect or Google Play Console to see your app analytics here.
-            </p>
-            <Button asChild>
-              <Link href="/integrations">Connect App Store</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  // Check if using mock data
+  const hasActiveIntegrations = integrations.some((i) => i.status === 'active')
+  const isUsingMockData = !hasActiveIntegrations
 
   // Get connected platforms
-  const hasIOS = integrations.some((i) => i.type === 'app_store_connect')
-  const hasAndroid = integrations.some((i) => i.type === 'google_play')
+  const hasIOS = integrations.some((i) => i.type === 'app_store_connect' && i.status === 'active')
+  const hasAndroid = integrations.some((i) => i.type === 'google_play' && i.status === 'active')
 
   return (
     <div className="space-y-6">
+      {/* Sample data banner when no integrations connected */}
+      {isUsingMockData && (
+        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📱</span>
+              <div>
+                <p className="font-medium text-blue-900 dark:text-blue-100">
+                  Viewing Sample Data
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Connect App Store Connect or Google Play to see your real app metrics
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm">
+              <Link href="/integrations">Connect App Store</Link>
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Header with sync button and platform filter */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          {/* Platform badges */}
-          {hasIOS && (
+          {/* Platform badges - show mock iOS by default */}
+          {(hasIOS || isUsingMockData) && (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-sm">
-              🍎 iOS
+              🍎 iOS {isUsingMockData && '(Sample)'}
             </span>
           )}
           {hasAndroid && (
@@ -275,10 +277,12 @@ export function AppAnalyticsDashboard() {
       )}
 
       {/* Metrics Overview */}
-      <MetricsOverview metrics={getFilteredMetrics()} />
+      <div className={`transition-opacity ${isRefreshing ? 'opacity-60' : ''}`}>
+        <MetricsOverview metrics={getFilteredMetrics()} />
+      </div>
 
       {/* Charts and Reviews Grid */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className={`grid lg:grid-cols-2 gap-6 transition-opacity ${isRefreshing ? 'opacity-60' : ''}`}>
         {/* Rating Distribution */}
         <Card>
           <CardHeader>
@@ -336,7 +340,7 @@ export function AppAnalyticsDashboard() {
       </div>
 
       {/* Reviews Section */}
-      <Card>
+      <Card className={`transition-opacity ${isRefreshing ? 'opacity-60' : ''}`}>
         <CardHeader>
           <CardTitle className="text-lg">Recent Reviews</CardTitle>
         </CardHeader>

@@ -14,13 +14,12 @@ import { DevMetrics } from './DevMetrics'
 import { CommitsList } from './CommitsList'
 import { PullRequestsList } from './PullRequestsList'
 import { LinearIssuesList } from './LinearIssuesList'
+import { getIntegrations, syncIntegration } from '@/lib/actions/integrations'
 import {
-  getIntegrations,
-  getGitHubCommits,
-  getGitHubPullRequests,
-  getLinearIssues,
-  syncIntegration,
-} from '@/lib/actions/integrations'
+  getGitHubCommitsWithMock,
+  getGitHubPullRequestsWithMock,
+  getLinearIssuesWithMock,
+} from '@/lib/actions/data-with-mocks'
 import type {
   Integration,
   GitHubCommit,
@@ -50,42 +49,32 @@ export function DevInsightsDashboard() {
 
   /**
    * Load GitHub and Linear integration data.
+   * Data is always loaded - mock data is used when integrations are not connected.
    */
   async function loadData() {
     setIsLoading(true)
     setError(null)
 
     try {
-      // Get all integrations
+      // Get integration status (for UI purposes)
       const intResult = await getIntegrations()
-      if (!intResult.success) {
-        setError(intResult.error.message)
-        return
+      if (intResult.success) {
+        const github = intResult.data.find((i) => i.type === 'github')
+        const linear = intResult.data.find((i) => i.type === 'linear')
+        setGithubIntegration(github || null)
+        setLinearIntegration(linear || null)
       }
 
-      // Find GitHub and Linear integrations
-      const github = intResult.data.find((i) => i.type === 'github')
-      const linear = intResult.data.find((i) => i.type === 'linear')
+      // Always fetch data - returns mock data if integrations not connected
+      const [commitsResult, prsResult, issuesResult] = await Promise.all([
+        getGitHubCommitsWithMock(50),
+        getGitHubPullRequestsWithMock(50),
+        getLinearIssuesWithMock(100),
+      ])
 
-      setGithubIntegration(github || null)
-      setLinearIntegration(linear || null)
-
-      // Fetch GitHub data
-      if (github && github.status === 'active') {
-        const [commitsResult, prsResult] = await Promise.all([
-          getGitHubCommits(github.id, 50),
-          getGitHubPullRequests(github.id, 50),
-        ])
-
-        if (commitsResult.success) setCommits(commitsResult.data)
-        if (prsResult.success) setPullRequests(prsResult.data)
-      }
-
-      // Fetch Linear data
-      if (linear && linear.status === 'active') {
-        const issuesResult = await getLinearIssues(linear.id, 100)
-        if (issuesResult.success) setLinearIssues(issuesResult.data)
-      }
+      if (commitsResult.success) setCommits(commitsResult.data)
+      if (prsResult.success) setPullRequests(prsResult.data)
+      if (issuesResult.success) setLinearIssues(issuesResult.data)
     } catch (err) {
       console.error('Error loading dev insights:', err)
       setError('Failed to load development data.')
@@ -124,91 +113,88 @@ export function DevInsightsDashboard() {
     )
   }
 
-  // No integrations connected
-  if (!githubIntegration && !linearIntegration) {
-    return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="text-center space-y-4">
-            <div className="text-5xl">{"</>"}</div>
-            <h3 className="text-lg font-semibold">Connect Development Tools</h3>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Connect GitHub and Linear to track commits, pull requests, and issues.
-            </p>
-            <Button asChild>
-              <Link href="/integrations">Connect Integrations</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  // Check if using mock data
+  const githubConnected = githubIntegration?.status === 'active'
+  const linearConnected = linearIntegration?.status === 'active'
+  const isUsingMockData = !githubConnected && !linearConnected
 
   const tabs = [
     { id: 'overview' as const, label: 'Overview' },
-    { id: 'commits' as const, label: 'Commits', count: commits.length, disabled: !githubIntegration },
-    { id: 'prs' as const, label: 'Pull Requests', count: pullRequests.length, disabled: !githubIntegration },
-    { id: 'linear' as const, label: 'Linear Issues', count: linearIssues.length, disabled: !linearIntegration },
+    { id: 'commits' as const, label: 'Commits', count: commits.length },
+    { id: 'prs' as const, label: 'Pull Requests', count: pullRequests.length },
+    { id: 'linear' as const, label: 'Linear Issues', count: linearIssues.length },
   ]
 
   return (
     <div className="space-y-6">
-      {/* Header with integration status and sync button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4 flex-wrap">
-          {githubIntegration && (
-            <div className="flex items-center gap-2">
-              <span className="text-xl">{"</>"}</span>
-              <span className="font-medium">{githubIntegration.name}</span>
-              <span
-                className={`text-xs px-2 py-1 rounded-full ${
-                  githubIntegration.status === 'active'
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                }`}
-              >
-                {githubIntegration.status}
-              </span>
+      {/* Sample data banner when no integrations connected */}
+      {isUsingMockData && (
+        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{"</>"}</span>
+              <div>
+                <p className="font-medium text-blue-900 dark:text-blue-100">
+                  Viewing Sample Data
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Connect GitHub or Linear to see your real development activity
+                </p>
+              </div>
             </div>
-          )}
-          {linearIntegration && (
-            <div className="flex items-center gap-2">
-              <span className="text-xl">{"[]"}</span>
-              <span className="font-medium">{linearIntegration.name}</span>
-              <span
-                className={`text-xs px-2 py-1 rounded-full ${
-                  linearIntegration.status === 'active'
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                }`}
-              >
-                {linearIntegration.status}
-              </span>
-            </div>
-          )}
+            <Button asChild size="sm">
+              <Link href="/integrations">Connect Integrations</Link>
+            </Button>
+          </div>
         </div>
+      )}
 
-        <Button variant="outline" size="sm" onClick={handleSync} disabled={isSyncing}>
-          {isSyncing ? (
-            <>
-              <Spinner className="h-4 w-4 mr-2" />
-              Syncing...
-            </>
-          ) : (
-            <>
-              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Sync Now
-            </>
-          )}
-        </Button>
-      </div>
+      {/* Header with integration status and sync button - only when connected */}
+      {(githubConnected || linearConnected) && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            {githubConnected && (
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{"</>"}</span>
+                <span className="font-medium">{githubIntegration!.name}</span>
+                <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  Connected
+                </span>
+              </div>
+            )}
+            {linearConnected && (
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{"[]"}</span>
+                <span className="font-medium">{linearIntegration!.name}</span>
+                <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  Connected
+                </span>
+              </div>
+            )}
+          </div>
+
+          <Button variant="outline" size="sm" onClick={handleSync} disabled={isSyncing}>
+            {isSyncing ? (
+              <>
+                <Spinner className="h-4 w-4 mr-2" />
+                Syncing...
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                Sync Now
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Error display */}
       {error && (
@@ -256,46 +242,42 @@ export function DevInsightsDashboard() {
 
           {/* Recent Activity */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {githubIntegration && (
-              <Card>
-                <CardContent className="pt-6">
-                  <h3 className="text-lg font-semibold mb-4">Recent Commits</h3>
-                  <CommitsList commits={commits.slice(0, 5)} compact />
-                  {commits.length > 5 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-3"
-                      onClick={() => setActiveTab('commits')}
-                    >
-                      View All Commits
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+            <Card>
+              <CardContent className="pt-6">
+                <h3 className="text-lg font-semibold mb-4">Recent Commits</h3>
+                <CommitsList commits={commits.slice(0, 5)} compact />
+                {commits.length > 5 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full mt-3"
+                    onClick={() => setActiveTab('commits')}
+                  >
+                    View All Commits
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
 
-            {linearIntegration && (
-              <Card>
-                <CardContent className="pt-6">
-                  <h3 className="text-lg font-semibold mb-4">In Progress</h3>
-                  <LinearIssuesList
-                    issues={linearIssues.filter((i) => i.state === 'in_progress').slice(0, 5)}
-                    compact
-                  />
-                  {linearIssues.filter((i) => i.state === 'in_progress').length > 5 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-3"
-                      onClick={() => setActiveTab('linear')}
-                    >
-                      View All Issues
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+            <Card>
+              <CardContent className="pt-6">
+                <h3 className="text-lg font-semibold mb-4">In Progress</h3>
+                <LinearIssuesList
+                  issues={linearIssues.filter((i) => i.state === 'in_progress').slice(0, 5)}
+                  compact
+                />
+                {linearIssues.filter((i) => i.state === 'in_progress').length > 5 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full mt-3"
+                    onClick={() => setActiveTab('linear')}
+                  >
+                    View All Issues
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}

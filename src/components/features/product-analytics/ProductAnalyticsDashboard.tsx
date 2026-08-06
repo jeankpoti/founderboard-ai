@@ -13,13 +13,12 @@ import { Spinner } from '@/components/ui/spinner'
 import { EventsMetrics } from './EventsMetrics'
 import { EventsList } from './EventsList'
 import { FunnelChart } from './FunnelChart'
+import { getIntegrations, syncIntegration } from '@/lib/actions/integrations'
 import {
-  getIntegrations,
-  getPostHogEvents,
-  getPostHogFunnels,
-  getPostHogRetention,
-  syncIntegration,
-} from '@/lib/actions/integrations'
+  getPostHogEventsWithMock,
+  getPostHogFunnelsWithMock,
+  getPostHogRetentionWithMock,
+} from '@/lib/actions/data-with-mocks'
 import type {
   Integration,
   PostHogEvent,
@@ -49,26 +48,23 @@ export function ProductAnalyticsDashboard() {
     setError(null)
 
     try {
+      // Get integration status (for UI purposes)
       const intResult = await getIntegrations()
-      if (!intResult.success) {
-        setError(intResult.error.message)
-        return
+      if (intResult.success) {
+        const posthogInt = intResult.data.find((i) => i.type === 'posthog')
+        setIntegration(posthogInt || null)
       }
 
-      const posthogInt = intResult.data.find((i) => i.type === 'posthog')
-      setIntegration(posthogInt || null)
+      // Always fetch data - returns mock data if PostHog not connected
+      const [eventsResult, funnelsResult, retentionResult] = await Promise.all([
+        getPostHogEventsWithMock(30),
+        getPostHogFunnelsWithMock(),
+        getPostHogRetentionWithMock(8),
+      ])
 
-      if (posthogInt && posthogInt.status === 'active') {
-        const [eventsResult, funnelsResult, retentionResult] = await Promise.all([
-          getPostHogEvents(posthogInt.id, 50),
-          getPostHogFunnels(posthogInt.id),
-          getPostHogRetention(posthogInt.id),
-        ])
-
-        if (eventsResult.success) setEvents(eventsResult.data)
-        if (funnelsResult.success) setFunnels(funnelsResult.data)
-        if (retentionResult.success) setRetention(retentionResult.data)
-      }
+      if (eventsResult.success) setEvents(eventsResult.data)
+      if (funnelsResult.success) setFunnels(funnelsResult.data)
+      if (retentionResult.success) setRetention(retentionResult.data)
     } catch (err) {
       console.error('Error loading product analytics:', err)
       setError('Failed to load product analytics data.')
@@ -100,24 +96,8 @@ export function ProductAnalyticsDashboard() {
     )
   }
 
-  if (!integration) {
-    return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="text-center space-y-4">
-            <div className="text-5xl">{"[x]"}</div>
-            <h3 className="text-lg font-semibold">Connect PostHog</h3>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Connect your PostHog account to see user events, funnels, and retention data.
-            </p>
-            <Button asChild>
-              <Link href="/integrations">Connect PostHog</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  // Check if using mock data
+  const isUsingMockData = !integration || integration.status !== 'active'
 
   const tabs = [
     { id: 'overview' as const, label: 'Overview' },
@@ -128,41 +108,59 @@ export function ProductAnalyticsDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">{"[x]"}</span>
-          <div>
-            <p className="font-medium">{integration.name}</p>
-            <p className="text-xs text-muted-foreground">PostHog</p>
+      {/* Sample data banner when PostHog not connected */}
+      {isUsingMockData && (
+        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📊</span>
+              <div>
+                <p className="font-medium text-blue-900 dark:text-blue-100">
+                  Viewing Sample Data
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Connect PostHog to see your real product analytics
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm">
+              <Link href="/integrations">Connect PostHog</Link>
+            </Button>
           </div>
-          <span
-            className={`text-xs px-2 py-1 rounded-full ${
-              integration.status === 'active'
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-            }`}
-          >
-            {integration.status}
-          </span>
         </div>
+      )}
 
-        <Button variant="outline" size="sm" onClick={handleSync} disabled={isSyncing}>
-          {isSyncing ? (
-            <>
-              <Spinner className="h-4 w-4 mr-2" />
-              Refreshing...
-            </>
-          ) : (
-            <>
-              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh Data
-            </>
-          )}
-        </Button>
-      </div>
+      {/* Header - only when connected */}
+      {integration && integration.status === 'active' && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📊</span>
+            <div>
+              <p className="font-medium">{integration.name}</p>
+              <p className="text-xs text-muted-foreground">PostHog</p>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+              Connected
+            </span>
+          </div>
+
+          <Button variant="outline" size="sm" onClick={handleSync} disabled={isSyncing}>
+            {isSyncing ? (
+              <>
+                <Spinner className="h-4 w-4 mr-2" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh Data
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">

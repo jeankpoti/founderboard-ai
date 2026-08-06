@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { getMetricSnapshots } from '@/lib/actions/metrics'
+import { getMetricSnapshotsWithMock } from '@/lib/actions/data-with-mocks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -66,7 +66,7 @@ function SingleMetricChart({ type, range }: SingleMetricChartProps) {
     async function fetchData() {
       setIsLoading(true)
       try {
-        const result = await getMetricSnapshots(type, range)
+        const result = await getMetricSnapshotsWithMock(type, range)
         if (result.success) {
           const chartData = result.data.map((snapshot: MetricSnapshot) => {
             const date = new Date(snapshot.recordedAt)

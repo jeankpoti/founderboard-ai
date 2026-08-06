@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { KPICard } from './KPICard'
 import { EditMetricModal } from './EditMetricModal'
 import { MetricTrendChart } from './MetricTrendChart'
-import { getMetrics } from '@/lib/actions/metrics'
+import { getMetricsWithMock } from '@/lib/actions/data-with-mocks'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Metric, MetricType } from '@/types/metrics'
 import type { Role } from '@/types/organization'
@@ -22,7 +22,7 @@ export function Dashboard({ role }: DashboardProps) {
 
   const fetchMetrics = useCallback(async () => {
     try {
-      const result = await getMetrics()
+      const result = await getMetricsWithMock()
       if (result.success) {
         const metricsMap = new Map<MetricType, Metric>()
         result.data.forEach((metric) => {

@@ -13,12 +13,11 @@ import { Spinner } from '@/components/ui/spinner'
 import { RevenueMetrics } from './RevenueMetrics'
 import { RevenueChart } from './RevenueChart'
 import { ChargesList } from './ChargesList'
+import { getIntegrations, syncIntegration } from '@/lib/actions/integrations'
 import {
-  getIntegrations,
-  getStripeMetrics,
-  getStripeCharges,
-  syncIntegration,
-} from '@/lib/actions/integrations'
+  getStripeMetricsWithMock,
+  getStripeChargesWithMock,
+} from '@/lib/actions/data-with-mocks'
 import type { Integration, StripeMetrics, StripeCharge } from '@/types/integrations'
 import Link from 'next/link'
 
@@ -38,35 +37,31 @@ export function RevenueDashboard() {
 
   /**
    * Load Stripe integration and data.
+   * Data is always loaded - mock data is used when Stripe is not connected.
    */
   async function loadData() {
     setIsLoading(true)
     setError(null)
 
     try {
-      // Get all integrations
+      // Get integration status (for UI purposes)
       const intResult = await getIntegrations()
-      if (!intResult.success) {
-        setError(intResult.error.message)
-        return
+      if (intResult.success) {
+        const stripeIntegration = intResult.data.find((i) => i.type === 'stripe')
+        setIntegration(stripeIntegration || null)
       }
 
-      // Find Stripe integration
-      const stripeIntegration = intResult.data.find((i) => i.type === 'stripe')
-      setIntegration(stripeIntegration || null)
+      // Always fetch data - returns mock data if Stripe not connected
+      const [metricsResult, chargesResult] = await Promise.all([
+        getStripeMetricsWithMock(),
+        getStripeChargesWithMock(20),
+      ])
 
-      if (stripeIntegration && stripeIntegration.status === 'active') {
-        // Fetch metrics
-        const metricsResult = await getStripeMetrics(stripeIntegration.id)
-        if (metricsResult.success) {
-          setMetrics(metricsResult.data)
-        }
-
-        // Fetch charges
-        const chargesResult = await getStripeCharges(stripeIntegration.id, 20)
-        if (chargesResult.success) {
-          setCharges(chargesResult.data)
-        }
+      if (metricsResult.success) {
+        setMetrics(metricsResult.data)
+      }
+      if (chargesResult.success) {
+        setCharges(chargesResult.data)
       }
     } catch (err) {
       console.error('Error loading revenue data:', err)
@@ -105,85 +100,86 @@ export function RevenueDashboard() {
     )
   }
 
-  // No Stripe integration connected
-  if (!integration) {
-    return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="text-center space-y-4">
-            <div className="text-5xl">💳</div>
-            <h3 className="text-lg font-semibold">Connect Stripe</h3>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Connect your Stripe account to see MRR, revenue trends, subscriptions, and recent charges.
-            </p>
-            <Button asChild>
-              <Link href="/integrations">Connect Stripe</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  // Check if using mock data
+  const isUsingMockData = !integration || integration.status !== 'active'
 
   return (
     <div className="space-y-6">
-      {/* Header with integration status and sync button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">💳</span>
-          <div>
-            <p className="font-medium">{integration.name}</p>
-            <p className="text-xs text-muted-foreground">Stripe</p>
+      {/* Sample data banner when Stripe not connected */}
+      {isUsingMockData && (
+        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">💳</span>
+              <div>
+                <p className="font-medium text-blue-900 dark:text-blue-100">
+                  Viewing Sample Data
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Connect Stripe to see your real revenue metrics
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm">
+              <Link href="/integrations">Connect Stripe</Link>
+            </Button>
           </div>
-          <span
-            className={`text-xs px-2 py-1 rounded-full ${
-              integration.status === 'active'
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-            }`}
-          >
-            {integration.status}
-          </span>
         </div>
+      )}
 
-        <div className="flex items-center gap-2">
-          {integration.lastSyncAt && (
-            <span className="text-xs text-muted-foreground">
-              Last sync: {new Date(integration.lastSyncAt).toLocaleDateString()}
+      {/* Header with integration status and sync button - only show when connected */}
+      {integration && integration.status === 'active' && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">💳</span>
+            <div>
+              <p className="font-medium">{integration.name}</p>
+              <p className="text-xs text-muted-foreground">Stripe</p>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+              Connected
             </span>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSync}
-            disabled={isSyncing}
-          >
-            {isSyncing ? (
-              <>
-                <Spinner className="h-4 w-4 mr-2" />
-                Syncing...
-              </>
-            ) : (
-              <>
-                <svg
-                  className="h-4 w-4 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                Sync Now
-              </>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {integration.lastSyncAt && (
+              <span className="text-xs text-muted-foreground">
+                Last sync: {new Date(integration.lastSyncAt).toLocaleDateString()}
+              </span>
             )}
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={isSyncing}
+            >
+              {isSyncing ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="h-4 w-4 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Sync Now
+                </>
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Error display */}
       {error && (
